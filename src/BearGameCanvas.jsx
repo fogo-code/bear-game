@@ -260,3 +260,4 @@ export default function BearGameCanvas() {
     </div>
   );
 }
+// trigger redeploy
