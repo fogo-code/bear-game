@@ -89,8 +89,13 @@ export default function BearGameCanvas() {
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
-      delete data[localPlayerId];
-      otherPlayersRef.current = data;
+      const updatedPlayers = {};
+      for (const id in data) {
+        if (data[id] && id !== localPlayerId && data[id].username) {
+          updatedPlayers[id] = data[id];
+        }
+      }
+      otherPlayersRef.current = updatedPlayers;
     });
 
     const update = () => {
