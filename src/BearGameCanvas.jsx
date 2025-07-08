@@ -23,14 +23,25 @@ export default function BearGameCanvas() {
   const chatMessageRef = useRef(null);
   const chatTimerRef = useRef(0);
   const [inputValue, setInputValue] = useState("");
+  const [username, setUsername] = useState(
+    localStorage.getItem("bearUsername") || ""
+  );
 
-  // Sync local player to Firebase
+  useEffect(() => {
+    if (!username) {
+      const name = prompt("Enter your bear name:");
+      setUsername(name);
+      localStorage.setItem("bearUsername", name);
+    }
+  }, []);
+
   const syncToFirebase = () => {
     const p = playerRef.current;
     set(ref(db, `players/${playerId.current}`), {
       x: p.x,
       y: p.y,
-      chat: chatMessageRef.current || ""
+      chat: chatMessageRef.current || "",
+      username
     });
   };
 
@@ -75,7 +86,6 @@ export default function BearGameCanvas() {
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("click", handleClick);
 
-    // Listen for other players
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
@@ -157,7 +167,7 @@ export default function BearGameCanvas() {
       const ctx = canvas.getContext("2d");
       drawGrassTexture(ctx, canvas.width, canvas.height);
 
-      const drawBear = (x, y, chat) => {
+      const drawBear = (x, y, chat, username) => {
         const angle = Math.atan2(mousePosRef.current.y - y, mousePosRef.current.x - x);
         ctx.save();
         ctx.translate(x, y);
@@ -165,18 +175,25 @@ export default function BearGameCanvas() {
         ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
         ctx.restore();
 
+        if (username) {
+          ctx.font = "14px Arial";
+          ctx.fillStyle = "yellow";
+          ctx.textAlign = "center";
+          ctx.fillText(username, x, y - 60);
+        }
+
         if (chat) {
           ctx.font = "16px Arial";
           ctx.fillStyle = "white";
           ctx.textAlign = "center";
-          ctx.fillText(chat, x, y - 50);
+          ctx.fillText(chat, x, y - 40);
         }
       };
 
       if (bearLoadedRef.current) {
-        drawBear(playerRef.current.x, playerRef.current.y, chatMessageRef.current);
+        drawBear(playerRef.current.x, playerRef.current.y, chatMessageRef.current, username);
         Object.values(otherPlayersRef.current).forEach(player => {
-          drawBear(player.x, player.y, player.chat);
+          drawBear(player.x, player.y, player.chat, player.username);
         });
       }
 
@@ -201,7 +218,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("click", handleClick);
       remove(ref(db, `players/${localPlayerId}`));
     };
-  }, []);
+  }, [username]);
 
   const handleChatSubmit = (e) => {
     e.preventDefault();
