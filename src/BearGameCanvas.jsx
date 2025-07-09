@@ -148,7 +148,7 @@ export default function BearGameCanvas() {
 
     const update = () => {
       if (isDead && respawnCountdown === null) {
-        remove(ref(db, `players/${playerId.current}`));
+        // Removed to prevent ghost player issue on respawn
         let countdown = 3;
         setRespawnCountdown(countdown);
         const timer = setInterval(() => {
@@ -204,7 +204,7 @@ export default function BearGameCanvas() {
         if (other.health <= 0) continue;
         const dx = other.x - newX;
         const dy = other.y - newY;
-        if (Math.sqrt(dx * dx + dy * dy) < radius * 1.2) {
+        if (Math.sqrt(dx * dx + dy * dy) < radius * 1.8) {
           blocked = true;
           break;
         }
