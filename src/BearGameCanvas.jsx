@@ -12,7 +12,7 @@ export default function BearGameCanvas() {
       return id;
     })()
   );
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, angle: 0 });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, angle: 0, health: 100 });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -30,14 +30,11 @@ export default function BearGameCanvas() {
       x: p.x,
       y: p.y,
       angle: p.angle ?? 0,
+      health: p.health,
       chat: chatMessageRef.current || "",
       username: "Player"
     };
-    console.log("SYNCING to Firebase:", data);
-
-    set(ref(db, `players/${playerId.current}`), data)
-      .then(() => console.log("✅ Firebase write success"))
-      .catch((err) => console.error("❌ Firebase write failed", err));
+    set(ref(db, `players/${playerId.current}`), data);
   };
 
   useEffect(() => {
@@ -50,11 +47,10 @@ export default function BearGameCanvas() {
       bearLoadedRef.current = true;
       playerRef.current.angle = 0;
       setTimeout(() => {
-        syncToFirebase(); 
+        syncToFirebase();
       }, 100);
     };
 
-    // Initialize mouse position to avoid NaN angle
     mousePosRef.current.x = playerRef.current.x + 1;
     mousePosRef.current.y = playerRef.current.y;
 
@@ -82,6 +78,17 @@ export default function BearGameCanvas() {
         angle
       };
       clawTimeRef.current = 10;
+
+      // Damage other players on click
+      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+        const dx = other.x - slashPosRef.current.x;
+        const dy = other.y - slashPosRef.current.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 40) {
+          const targetRef = ref(db, `players/${id}/health`);
+          set(targetRef, Math.max(0, other.health - 10));
+        }
+      });
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -113,8 +120,6 @@ export default function BearGameCanvas() {
       const dy = mousePosRef.current.y - y;
       const rawAngle = Math.atan2(dy, dx);
       playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
-
-      console.log("🧭 Calculated angle:", playerRef.current.angle);
 
       if (clawTimeRef.current > 0) {
         clawTimeRef.current -= 1;
@@ -173,7 +178,7 @@ export default function BearGameCanvas() {
       ctx.fillRect(0, 0, width, height);
     };
 
-    const drawBear = (x, y, chat, username, angle = 0) => {
+    const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle - Math.PI / 2);
@@ -193,6 +198,12 @@ export default function BearGameCanvas() {
         ctx.textAlign = "center";
         ctx.fillText(chat, x, y - 40);
       }
+
+      // Draw health bar
+      ctx.fillStyle = "red";
+      ctx.fillRect(x - 40, y - 70, 80, 5);
+      ctx.fillStyle = "lime";
+      ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
     };
 
     const draw = () => {
@@ -200,9 +211,16 @@ export default function BearGameCanvas() {
       drawGrassTexture(ctx, canvas.width, canvas.height);
 
       if (bearLoadedRef.current) {
-        drawBear(playerRef.current.x, playerRef.current.y, chatMessageRef.current, "You", playerRef.current.angle);
+        drawBear(
+          playerRef.current.x,
+          playerRef.current.y,
+          chatMessageRef.current,
+          "You",
+          playerRef.current.angle,
+          playerRef.current.health
+        );
         Object.values(otherPlayersRef.current).forEach(player => {
-          drawBear(player.x, player.y, player.chat, player.username, player.angle);
+          drawBear(player.x, player.y, player.chat, player.username, player.angle, player.health);
         });
       }
 
