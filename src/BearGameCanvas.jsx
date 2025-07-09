@@ -15,7 +15,7 @@ export default function BearGameCanvas() {
       return id;
     })()
   );
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100 });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -92,12 +92,16 @@ export default function BearGameCanvas() {
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-      slashPosRef.current = {
+      const slash = {
         x: player.x + Math.cos(angle) * (player.radius + 5),
         y: player.y + Math.sin(angle) * (player.radius + 5),
-        angle
+        angle,
+        timestamp: Date.now()
       };
+      slashPosRef.current = slash;
+      playerRef.current.slash = slash;
       clawTimeRef.current = 10;
+      syncToFirebase();
 
       Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
         const dx = other.x - slashPosRef.current.x;
@@ -148,7 +152,16 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      if (playerRef.current.health <= 0) return;
+      if (playerRef.current.health <= 0) {
+        // Respawn after a short delay
+        setTimeout(() => {
+          playerRef.current.health = 100;
+          playerRef.current.x = Math.random() * 700 + 50;
+          playerRef.current.y = Math.random() * 500 + 50;
+          syncToFirebase();
+        }, 2000);
+        return;
+      }
 
       if (!chatActive) {
         const { speed } = playerRef.current;
@@ -186,7 +199,7 @@ export default function BearGameCanvas() {
       ctx.fillStyle = '#3e5e36';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
+      const drawBear = (x, y, chat, username, angle = 0, health = 100, slash = null) => {
         if (health <= 0) return;
         ctx.save();
         ctx.translate(x, y);
@@ -212,6 +225,22 @@ export default function BearGameCanvas() {
         ctx.fillRect(x - 40, y - 70, 80, 5);
         ctx.fillStyle = "lime";
         ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
+
+        if (slash && Date.now() - slash.timestamp < 300) {
+          ctx.save();
+          ctx.translate(slash.x, slash.y);
+          ctx.rotate(slash.angle);
+          ctx.strokeStyle = 'silver';
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 3; i++) {
+            const offsetY = -10 + i * 10;
+            ctx.beginPath();
+            ctx.moveTo(0, offsetY);
+            ctx.lineTo(25, offsetY - 5);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       };
 
       if (bearLoadedRef.current) {
@@ -224,7 +253,7 @@ export default function BearGameCanvas() {
           playerRef.current.health
         );
         Object.values(otherPlayersRef.current).forEach(player => {
-          drawBear(player.x, player.y, player.chat, player.username, player.angle, player.health);
+          drawBear(player.x, player.y, player.chat, player.username, player.angle, player.health, player.slash);
         });
       }
 
