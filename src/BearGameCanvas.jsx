@@ -164,8 +164,8 @@ export default function BearGameCanvas() {
             setRespawnCountdown(null);
             syncToFirebase();
           });
-            syncToFirebase();
-          } else {
+            }
+          else {
             setRespawnCountdown(countdown);
           }
         }, 1000);
