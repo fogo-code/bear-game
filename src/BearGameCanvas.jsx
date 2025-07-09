@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.5");
+  console.log("🐻 BearCanvas updated build: v2.6");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -28,6 +28,7 @@ export default function BearGameCanvas() {
   const [inputValue, setInputValue] = useState("");
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
+  const chatModeRef = useRef(false);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -66,6 +67,7 @@ export default function BearGameCanvas() {
         e.preventDefault();
         if (!chatActive) {
           setChatActive(true);
+          chatModeRef.current = true;
           setTimeout(() => inputRef.current?.focus(), 0);
         } else {
           if (inputValue.trim() !== "") {
@@ -76,11 +78,12 @@ export default function BearGameCanvas() {
             syncToFirebase();
           }
           setChatActive(false);
-          keys.current = {}; // Reset movement keys
+          chatModeRef.current = false;
+          keys.current = {};
         }
         return;
       }
-      if (!chatActive) keys.current[e.key] = true;
+      if (!chatModeRef.current) keys.current[e.key] = true;
     };
 
     const handleKeyUp = (e) => {
@@ -94,7 +97,7 @@ export default function BearGameCanvas() {
     };
 
     const handleClick = () => {
-      if (chatActive) return;
+      if (chatModeRef.current) return;
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -154,8 +157,8 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      if (chatActive) {
-        keys.current = {}; // reset keys if typing
+      if (chatModeRef.current) {
+        keys.current = {};
         return;
       }
 
@@ -270,7 +273,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       remove(ref(db, `players/${localPlayerId}`));
     };
-  }, [chatActive]);
+  }, []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
@@ -289,7 +292,8 @@ export default function BearGameCanvas() {
             syncToFirebase();
           }
           setChatActive(false);
-          keys.current = {}; // Also reset keys on form submit
+          chatModeRef.current = false;
+          keys.current = {};
         }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
             ref={inputRef}
