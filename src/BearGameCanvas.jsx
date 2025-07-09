@@ -29,7 +29,12 @@ export default function BearGameCanvas() {
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
 
+  let lastSyncTime = 0;
   const syncToFirebase = () => {
+    const now = Date.now();
+    if (now - lastSyncTime < 150) return; // limit to ~6-7 times per second
+    lastSyncTime = now;
+
     const p = playerRef.current;
     const data = {
       x: p.x,
