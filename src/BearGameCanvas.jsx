@@ -103,7 +103,7 @@ export default function BearGameCanvas() {
         const dx = other.x - slashPosRef.current.x;
         const dy = other.y - slashPosRef.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 40) {
+        if (dist < 40 && other.health > 0) {
           push(ref(db, `damageEvents/${id}`), {
             from: localPlayerId,
             angle,
@@ -148,7 +148,8 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      // Don't return early — just skip movement if chatActive
+      if (playerRef.current.health <= 0) return;
+
       if (!chatActive) {
         const { speed } = playerRef.current;
         let x = playerRef.current.x;
@@ -186,6 +187,7 @@ export default function BearGameCanvas() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
+        if (health <= 0) return;
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle - Math.PI / 2);
