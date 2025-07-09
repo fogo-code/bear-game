@@ -3,8 +3,10 @@ import db from './firebase';
 import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
+let lastSyncTime = 0; // ✅ Track last sync timestamp
+
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.3");
+  console.log("🐻 BearCanvas updated build: v2.4");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -178,10 +180,19 @@ export default function BearGameCanvas() {
       playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
-      if (chatTimerRef.current > 0) chatTimerRef.current--;
-      else chatMessageRef.current = null;
 
-      syncToFirebase();
+      if (chatTimerRef.current > 0) {
+        chatTimerRef.current--;
+      } else if (chatMessageRef.current !== null) {
+        lastChatRef.current = chatMessageRef.current;
+        chatMessageRef.current = null;
+      }
+
+      const now = Date.now();
+      if (now - lastSyncTime > 100) {
+        syncToFirebase();
+        lastSyncTime = now;
+      }
     };
 
     const draw = () => {
