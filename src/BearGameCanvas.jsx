@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, get } from 'firebase/database';
+import { ref, set, onValue, remove, get, update } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -85,14 +85,11 @@ export default function BearGameCanvas() {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 40) {
           const newHealth = Math.max(0, other.health - 10);
-          set(ref(db, `players/${id}/health`), newHealth);
-
-          // Knockback
-          const knockbackDist = 10;
-          const knockbackX = other.x + Math.cos(angle) * knockbackDist;
-          const knockbackY = other.y + Math.sin(angle) * knockbackDist;
-          set(ref(db, `players/${id}/x`), knockbackX);
-          set(ref(db, `players/${id}/y`), knockbackY);
+          update(ref(db, `players/${id}`), {
+            health: newHealth,
+            x: other.x + Math.cos(angle) * 10,
+            y: other.y + Math.sin(angle) * 10
+          });
         }
       });
     };
@@ -106,24 +103,26 @@ export default function BearGameCanvas() {
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
       const filteredData = Object.entries(data).reduce((acc, [id, val]) => {
-        if (id !== localPlayerId && val.health > 0) {
+        if (id !== localPlayerId) {
           acc[id] = val;
         }
         return acc;
       }, {});
       otherPlayersRef.current = filteredData;
+
+      // If your own player data exists and your health is 0, respawn
+      if (data[localPlayerId] && data[localPlayerId].health <= 0) {
+        playerRef.current.health = 100;
+        playerRef.current.x = Math.random() * 700 + 50;
+        playerRef.current.y = Math.random() * 500 + 50;
+        syncToFirebase();
+      }
     });
 
     const update = () => {
       const { speed } = playerRef.current;
       let x = playerRef.current.x;
       let y = playerRef.current.y;
-
-      if (playerRef.current.health <= 0) {
-        playerRef.current.health = 100;
-        playerRef.current.x = Math.random() * 700 + 50;
-        playerRef.current.y = Math.random() * 500 + 50;
-      }
 
       if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
       if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
