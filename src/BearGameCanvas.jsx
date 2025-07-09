@@ -194,8 +194,8 @@ onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
       Object.entries(events).forEach(([id, event]) => {
         const damage = event.type === 'charge' ? 30 : 10;
         playerRef.current.health = Math.max(0, playerRef.current.health - damage);
-        playerRef.current.x += Math.cos(event.angle) * 100;
-        playerRef.current.y += Math.sin(event.angle) * 100;
+        playerRef.current.vx += Math.cos(event.angle) * 10;
+        playerRef.current.vy += Math.sin(event.angle) * 10;
         set(ref(db, `damageEvents/${localPlayerId}/${id}`), null);
         chatMessageRef.current = null;
         lastChatRef.current = null;
@@ -228,7 +228,7 @@ onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
           const dx = x - other.x;
           const dy = y - other.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const minDist = playerRef.current.radius * 2;
+          const minDist = playerRef.current.radius * 1.6;
           if (dist < minDist && other.health > 0) {
             const angle = Math.atan2(dy, dx);
             const overlap = minDist - dist;
