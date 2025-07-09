@@ -4,18 +4,18 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.18");
-  console.log("Your player ID:", playerId.current);
+  
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const playerId = useRef(
-    localStorage.getItem("bearPlayerId") || (() => {
-      const id = uuidv4();
-      localStorage.setItem("bearPlayerId", id);
-      return id;
-    })()
-  );
+  localStorage.getItem("bearPlayerId") || (() => {
+    const id = uuidv4();
+    localStorage.setItem("bearPlayerId", id);
+    return id;
+  })()
+);
+
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
