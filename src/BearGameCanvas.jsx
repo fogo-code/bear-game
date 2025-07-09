@@ -154,8 +154,9 @@ export default function BearGameCanvas() {
         const timer = setInterval(() => {
           countdown--;
           if (countdown <= 0) {
-            clearInterval(timer);
-            playerRef.current.health = 100;
+          clearInterval(timer);
+          setIsDead(false);
+          remove(ref(db, `players/${playerId.current}`));
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
             setIsDead(false);
