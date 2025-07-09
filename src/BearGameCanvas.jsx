@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.6");
+  console.log("🐻 BearCanvas updated build: v2.7");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -28,7 +28,6 @@ export default function BearGameCanvas() {
   const [inputValue, setInputValue] = useState("");
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
-  const chatModeRef = useRef(false);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -67,7 +66,6 @@ export default function BearGameCanvas() {
         e.preventDefault();
         if (!chatActive) {
           setChatActive(true);
-          chatModeRef.current = true;
           setTimeout(() => inputRef.current?.focus(), 0);
         } else {
           if (inputValue.trim() !== "") {
@@ -78,12 +76,11 @@ export default function BearGameCanvas() {
             syncToFirebase();
           }
           setChatActive(false);
-          chatModeRef.current = false;
           keys.current = {};
         }
         return;
       }
-      if (!chatModeRef.current) keys.current[e.key] = true;
+      if (!chatActive) keys.current[e.key] = true;
     };
 
     const handleKeyUp = (e) => {
@@ -97,7 +94,7 @@ export default function BearGameCanvas() {
     };
 
     const handleClick = () => {
-      if (chatModeRef.current) return;
+      if (chatActive) return;
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -157,27 +154,25 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      if (chatModeRef.current) {
-        keys.current = {};
-        return;
+      // Don't return early — just skip movement if chatActive
+      if (!chatActive) {
+        const { speed } = playerRef.current;
+        let x = playerRef.current.x;
+        let y = playerRef.current.y;
+
+        if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
+        if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
+        if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
+        if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
+
+        playerRef.current.x = x;
+        playerRef.current.y = y;
+
+        const dx = mousePosRef.current.x - x;
+        const dy = mousePosRef.current.y - y;
+        const rawAngle = Math.atan2(dy, dx);
+        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
       }
-
-      const { speed } = playerRef.current;
-      let x = playerRef.current.x;
-      let y = playerRef.current.y;
-
-      if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
-      if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
-      if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
-      if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
-
-      playerRef.current.x = x;
-      playerRef.current.y = y;
-
-      const dx = mousePosRef.current.x - x;
-      const dy = mousePosRef.current.y - y;
-      const rawAngle = Math.atan2(dy, dx);
-      playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
 
@@ -292,7 +287,6 @@ export default function BearGameCanvas() {
             syncToFirebase();
           }
           setChatActive(false);
-          chatModeRef.current = false;
           keys.current = {};
         }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
