@@ -4,6 +4,32 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
+  useEffect(() => {
+    if (!isDead || respawnCountdown !== null) return;
+
+    let countdown = 3;
+    setRespawnCountdown(countdown);
+
+    const interval = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) {
+        clearInterval(interval);
+        setRespawnCountdown(null);
+        setIsDead(false);
+        playerRef.current.health = 100;
+        playerRef.current.x = Math.random() * 700 + 50;
+        playerRef.current.y = Math.random() * 500 + 50;
+        chatMessageRef.current = null;
+        lastChatRef.current = null;
+        playerRef.current.slash = null;
+        syncToFirebase();
+      } else {
+        setRespawnCountdown(countdown);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isDead, respawnCountdown]);
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const playerId = useRef(
