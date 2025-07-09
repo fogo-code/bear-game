@@ -16,6 +16,7 @@ export default function BearGameCanvas() {
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100 });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
+  const pressedKeys = useRef(new Set());
   const clawTimeRef = useRef(0);
   const mousePosRef = useRef({ x: 0, y: 0 });
   const slashPosRef = useRef({ x: 0, y: 0, angle: 0 });
@@ -62,6 +63,8 @@ export default function BearGameCanvas() {
     mousePosRef.current.y = playerRef.current.y;
 
     const handleKeyDown = (e) => {
+      if (e.repeat) return;
+
       if (e.key === 'Enter') {
         e.preventDefault();
         if (!chatActive) {
@@ -76,16 +79,20 @@ export default function BearGameCanvas() {
             syncToFirebase();
           }
           setChatActive(false);
-          // Clear all keys
           keys.current = {};
+          pressedKeys.current.clear();
         }
         return;
       }
-      if (!chatActive) keys.current[e.key] = true;
+      if (!chatActive) {
+        keys.current[e.key] = true;
+        pressedKeys.current.add(e.key);
+      }
     };
 
     const handleKeyUp = (e) => {
       keys.current[e.key] = false;
+      pressedKeys.current.delete(e.key);
     };
 
     const handleMouseMove = (e) => {
@@ -283,6 +290,7 @@ export default function BearGameCanvas() {
           }
           setChatActive(false);
           keys.current = {};
+          pressedKeys.current.clear();
         }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
             ref={inputRef}
