@@ -32,7 +32,7 @@ export default function BearGameCanvas() {
   const [isDead, setIsDead] = useState(false);
 
   useEffect(() => {
-    if (!isDead || respawnCountdown !== null) return;
+    if (!isDead) return;
 
     let countdown = 3;
     setRespawnCountdown(countdown);
@@ -56,7 +56,7 @@ export default function BearGameCanvas() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isDead, respawnCountdown]);
+  }, [isDead]);
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
