@@ -161,15 +161,15 @@ export default function BearGameCanvas() {
     };
     gameLoop();
 
-  return () => {
-    window.removeEventListener("keydown", handleKeyDown);
-    window.removeEventListener("keyup", handleKeyUp);
-    window.removeEventListener("mousemove", handleMouseMove);
-    window.removeEventListener("click", handleClick);
-    window.removeEventListener("beforeunload", handleBeforeUnload);
-    remove(ref(db, `players/${localPlayerId}`));
-  };
-}, []);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      remove(ref(db, `players/${localPlayerId}`));
+    };
+  }, []);
 
 
   return (
