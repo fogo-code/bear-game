@@ -12,7 +12,7 @@ export default function BearGameCanvas() {
       return id;
     })()
   );
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2 });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, angle: 0 });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -23,26 +23,21 @@ export default function BearGameCanvas() {
   const chatMessageRef = useRef(null);
   const chatTimerRef = useRef(0);
   const [inputValue, setInputValue] = useState("");
-  const [username, setUsername] = useState(
-    localStorage.getItem("bearUsername") || ""
-  );
-
-  useEffect(() => {
-    if (!username) {
-      const name = prompt("Enter your bear name:");
-      setUsername(name);
-      localStorage.setItem("bearUsername", name);
-    }
-  }, []);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
-    set(ref(db, `players/${playerId.current}`), {
+    const data = {
       x: p.x,
       y: p.y,
+      angle: p.angle ?? 0,
       chat: chatMessageRef.current || "",
-      username
-    });
+      username: "Player"
+    };
+    console.log("SYNCING to Firebase:", data);
+
+    set(ref(db, `players/${playerId.current}`), data)
+      .then(() => console.log("✅ Firebase write success"))
+      .catch((err) => console.error("❌ Firebase write failed", err));
   };
 
   useEffect(() => {
@@ -53,7 +48,15 @@ export default function BearGameCanvas() {
     bearImgRef.current.src = process.env.PUBLIC_URL + "/bear.png";
     bearImgRef.current.onload = () => {
       bearLoadedRef.current = true;
+      playerRef.current.angle = 0;
+      setTimeout(() => {
+        syncToFirebase(); 
+      }, 100);
     };
+
+    // Initialize mouse position to avoid NaN angle
+    mousePosRef.current.x = playerRef.current.x + 1;
+    mousePosRef.current.y = playerRef.current.y;
 
     const handleKeyDown = (e) => {
       keys.current[e.key] = true;
@@ -89,13 +92,8 @@ export default function BearGameCanvas() {
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const updatedPlayers = {};
-      for (const id in data) {
-        if (data[id] && id !== localPlayerId && data[id].username) {
-          updatedPlayers[id] = data[id];
-        }
-      }
-      otherPlayersRef.current = updatedPlayers;
+      delete data[localPlayerId];
+      otherPlayersRef.current = data;
     });
 
     const update = () => {
@@ -110,6 +108,13 @@ export default function BearGameCanvas() {
 
       playerRef.current.x = x;
       playerRef.current.y = y;
+
+      const dx = mousePosRef.current.x - x;
+      const dy = mousePosRef.current.y - y;
+      const rawAngle = Math.atan2(dy, dx);
+      playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
+
+      console.log("🧭 Calculated angle:", playerRef.current.angle);
 
       if (clawTimeRef.current > 0) {
         clawTimeRef.current -= 1;
@@ -168,37 +173,36 @@ export default function BearGameCanvas() {
       ctx.fillRect(0, 0, width, height);
     };
 
+    const drawBear = (x, y, chat, username, angle = 0) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle - Math.PI / 2);
+      ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
+      ctx.restore();
+
+      if (username) {
+        ctx.font = "14px Arial";
+        ctx.fillStyle = "yellow";
+        ctx.textAlign = "center";
+        ctx.fillText(username, x, y - 60);
+      }
+
+      if (chat) {
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.fillText(chat, x, y - 40);
+      }
+    };
+
     const draw = () => {
       const ctx = canvas.getContext("2d");
       drawGrassTexture(ctx, canvas.width, canvas.height);
 
-      const drawBear = (x, y, chat, username) => {
-        const angle = Math.atan2(mousePosRef.current.y - y, mousePosRef.current.x - x);
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle - Math.PI / 2);
-        ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
-        ctx.restore();
-
-        if (username) {
-          ctx.font = "14px Arial";
-          ctx.fillStyle = "yellow";
-          ctx.textAlign = "center";
-          ctx.fillText(username, x, y - 60);
-        }
-
-        if (chat) {
-          ctx.font = "16px Arial";
-          ctx.fillStyle = "white";
-          ctx.textAlign = "center";
-          ctx.fillText(chat, x, y - 40);
-        }
-      };
-
       if (bearLoadedRef.current) {
-        drawBear(playerRef.current.x, playerRef.current.y, chatMessageRef.current, username);
+        drawBear(playerRef.current.x, playerRef.current.y, chatMessageRef.current, "You", playerRef.current.angle);
         Object.values(otherPlayersRef.current).forEach(player => {
-          drawBear(player.x, player.y, player.chat, player.username);
+          drawBear(player.x, player.y, player.chat, player.username, player.angle);
         });
       }
 
@@ -223,7 +227,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("click", handleClick);
       remove(ref(db, `players/${localPlayerId}`));
     };
-  }, [username]);
+  }, []);
 
   const handleChatSubmit = (e) => {
     e.preventDefault();
@@ -260,7 +264,3 @@ export default function BearGameCanvas() {
     </div>
   );
 }
-// trigger redeploy
-// redeploy trigger
-// redeploy
-// redeploy
