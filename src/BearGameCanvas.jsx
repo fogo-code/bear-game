@@ -204,7 +204,7 @@ export default function BearGameCanvas() {
         if (other.health <= 0) continue;
         const dx = other.x - newX;
         const dy = other.y - newY;
-        if (Math.sqrt(dx * dx + dy * dy) < radius * 2) {
+        if (Math.sqrt(dx * dx + dy * dy) < radius * 1.2) {
           blocked = true;
           break;
         }
