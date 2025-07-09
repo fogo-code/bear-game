@@ -84,8 +84,8 @@ export default function BearGameCanvas() {
         const dy = other.y - slashPosRef.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 40) {
-          const targetHealthRef = ref(db, `players/${id}/health`);
-          set(targetHealthRef, Math.max(0, other.health - 10));
+          const newHealth = Math.max(0, other.health - 10);
+          set(ref(db, `players/${id}/health`), newHealth);
 
           // Knockback
           const knockbackDist = 10;
@@ -105,14 +105,25 @@ export default function BearGameCanvas() {
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
-      delete data[localPlayerId];
-      otherPlayersRef.current = data;
+      const filteredData = Object.entries(data).reduce((acc, [id, val]) => {
+        if (id !== localPlayerId && val.health > 0) {
+          acc[id] = val;
+        }
+        return acc;
+      }, {});
+      otherPlayersRef.current = filteredData;
     });
 
     const update = () => {
       const { speed } = playerRef.current;
       let x = playerRef.current.x;
       let y = playerRef.current.y;
+
+      if (playerRef.current.health <= 0) {
+        playerRef.current.health = 100;
+        playerRef.current.x = Math.random() * 700 + 50;
+        playerRef.current.y = Math.random() * 500 + 50;
+      }
 
       if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
       if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
