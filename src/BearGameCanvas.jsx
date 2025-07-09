@@ -128,7 +128,7 @@ export default function BearGameCanvas() {
         Object.entries(data).filter(([id]) => id !== localPlayerId)
       );
       otherPlayersRef.current = filtered;
-      if (data[localPlayerId]?.health <= 0 && playerRef.current.health > 0) {
+      if (data[localPlayerId]?.health <= 0 && playerRef.current.health > 0 && !isDead && respawnCountdown === null) {
         playerRef.current.health = 0;
         setIsDead(true);
         syncToFirebase();
