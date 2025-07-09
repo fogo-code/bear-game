@@ -155,8 +155,12 @@ export default function BearGameCanvas() {
           countdown--;
           if (countdown <= 0) {
           clearInterval(timer);
-          remove(ref(db, `players/${playerId.current}`));
-          setTimeout(() => setIsDead(false), 100);
+          setTimeout(() => {
+            remove(ref(db, `players/${playerId.current}`));
+            setIsDead(false);
+            playerRef.current.health = 100;
+            syncToFirebase();
+          }, 100);
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
             setIsDead(false);
