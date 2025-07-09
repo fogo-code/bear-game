@@ -14,7 +14,7 @@ export default function BearGameCanvas() {
     })()
   );
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, vx: 0, vy: 0, angle: 0, health: 100, slash: null });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, vx: 0, vy: 0, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -225,15 +225,15 @@ onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
 
         // Collision with other bears
         Object.values(otherPlayersRef.current).forEach((other) => {
-          const dx = playerRef.current.x - other.x;
-          const dy = playerRef.current.y - other.y;
+          const dx = x - other.x;
+          const dy = y - other.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           const minDist = playerRef.current.radius * 2;
           if (dist < minDist && other.health > 0) {
             const angle = Math.atan2(dy, dx);
             const overlap = minDist - dist;
-            playerRef.current.x += Math.cos(angle) * overlap / 2;
-            playerRef.current.y += Math.sin(angle) * overlap / 2;
+            x += Math.cos(angle) * overlap / 2;
+            y += Math.sin(angle) * overlap / 2;
           }
         });
         playerRef.current.vx = vx;
