@@ -149,23 +149,22 @@ export default function BearGameCanvas() {
 
     const update = () => {
       if (isDead && respawnCountdown === null) {
-        // Removed to prevent ghost player issue on respawn
         let countdown = 3;
         setRespawnCountdown(countdown);
         const timer = setInterval(() => {
           countdown--;
           if (countdown <= 0) {
-          clearInterval(timer);
-          remove(ref(db, `players/${playerId.current}`)).then(() => {
-            playerRef.current.x = Math.random() * 700 + 50;
-            playerRef.current.y = Math.random() * 500 + 50;
-            playerRef.current.health = 100;
-            setIsDead(false);
-            setRespawnCountdown(null);
-            syncToFirebase();
-          });
-            }
-          else {
+            clearInterval(timer);
+            remove(ref(db, `players/${playerId.current}`)).then(() => {
+              playerRef.current.x = Math.random() * 700 + 50;
+              playerRef.current.y = Math.random() * 500 + 50;
+              playerRef.current.health = 100;
+              playerRef.current.slash = null;
+              setIsDead(false);
+              setRespawnCountdown(null);
+              syncToFirebase();
+            });
+          } else {
             setRespawnCountdown(countdown);
           }
         }, 1000);
