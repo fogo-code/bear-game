@@ -52,6 +52,28 @@ export default function BearGameCanvas() {
   };
 
   useEffect(() => {
+    if (isDead && respawnCountdown === null) {
+      let countdown = 3;
+      setRespawnCountdown(countdown);
+
+      const interval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(interval);
+          setRespawnCountdown(null);
+          setIsDead(false);
+          playerRef.current.health = 100;
+          playerRef.current.x = Math.random() * 700 + 50;
+          playerRef.current.y = Math.random() * 500 + 50;
+          chatMessageRef.current = null;
+          lastChatRef.current = null;
+          playerRef.current.slash = null;
+          syncToFirebase();
+        } else {
+          setRespawnCountdown(countdown);
+        }
+      }, 1000);
+    }
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
