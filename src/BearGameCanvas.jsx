@@ -93,17 +93,18 @@ export default function BearGameCanvas() {
     };
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && document.activeElement !== inputRef.current) {
-        e.preventDefault();
-        if (!chatActive) {
-          setChatActive(true);
-          keys.current = {};
-          setTimeout(() => inputRef.current?.focus(), 0);
-        }
-      if (!chatActive && document.activeElement !== inputRef.current) {
-        keys.current[e.key] = true;
-      }
-    };
+  if (e.key === 'Enter' && document.activeElement !== inputRef.current) {
+    e.preventDefault();
+    if (!chatActive) {
+      setChatActive(true);
+      keys.current = {};
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
+  if (!chatActive && document.activeElement !== inputRef.current) {
+    keys.current[e.key] = true;
+  }
+};
     const handleKeyUp = (e) => { keys.current[e.key] = false; };
     const handleMouseMove = (e) => {
       const rect = canvas.getBoundingClientRect();
