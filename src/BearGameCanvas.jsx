@@ -100,6 +100,8 @@ export default function BearGameCanvas() {
       keys.current = {};
       setTimeout(() => inputRef.current?.focus(), 0);
     }
+    return;
+  }
 
   if (!chatActive && document.activeElement !== inputRef.current) {
     keys.current[e.key] = true;
@@ -149,34 +151,7 @@ export default function BearGameCanvas() {
               console.log("✅ Player respawned");
               syncToFirebase();
             });
-    });
-
-    const update = () => {
-      if (isDead && respawnCountdown === null) {
-        let countdown = 3;
-        setRespawnCountdown(countdown);
-        const timer = setInterval(() => {
-          countdown--;
-          if (countdown <= 0) {
-            clearInterval(timer);
-            playerRef.current.x = Math.random() * 700 + 50;
-            playerRef.current.y = Math.random() * 500 + 50;
-            playerRef.current.health = 100;
-            playerRef.current.slash = null;
-            setIsDead(false);
-            setRespawnCountdown(null);
-            chatMessageRef.current = null;
-            lastChatRef.current = null;
-            console.log("✅ Player respawned");
-            syncToFirebase();
-          } else {
-            setRespawnCountdown(countdown);
-          }
-        }, 1000);
-        return;
-      }
-        return;
-      }
+    });const update = () => {
       if (isDead) return;
 
       if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
