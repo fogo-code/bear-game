@@ -13,7 +13,7 @@ export default function BearGameCanvas() {
       return id;
     })()
   );
-  console.log("🐻 BearGameCanvas Build: v2.19");
+  console.log("🐻 BearGameCanvas Build: v2.20");
   console.log("Your player ID:", playerId.current);
 
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
@@ -79,7 +79,6 @@ export default function BearGameCanvas() {
         }
         return;
       }
-
       if (!chatActive && document.activeElement !== inputRef.current) {
         keys.current[e.key] = true;
       }
@@ -107,13 +106,21 @@ export default function BearGameCanvas() {
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
+
+      // Fix duplication: remove self from Firebase before respawn
+      if (!data[localPlayerId]) {
+        setIsDead(false);
+        setRespawnCountdown(null);
+        return;
+      }
+
       const filteredData = Object.entries(data).reduce((acc, [id, val]) => {
         if (id !== localPlayerId) acc[id] = val;
         return acc;
       }, {});
       otherPlayersRef.current = filteredData;
 
-      if (data[localPlayerId] && data[localPlayerId].health <= 0 && playerRef.current.health > 0) {
+      if (data[localPlayerId].health <= 0 && playerRef.current.health > 0) {
         playerRef.current.health = 0;
         setIsDead(true);
         syncToFirebase();
@@ -137,17 +144,18 @@ export default function BearGameCanvas() {
 
     const update = () => {
       if (isDead && respawnCountdown === null) {
+        remove(ref(db, `players/${localPlayerId}`));
         let countdown = 3;
         setRespawnCountdown(countdown);
         const countdownInterval = setInterval(() => {
           countdown--;
           if (countdown <= 0) {
             clearInterval(countdownInterval);
-            setRespawnCountdown(null);
-            setIsDead(false);
             playerRef.current.health = 100;
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
+            setIsDead(false);
+            setRespawnCountdown(null);
             syncToFirebase();
           } else {
             setRespawnCountdown(countdown);
@@ -296,7 +304,6 @@ export default function BearGameCanvas() {
         ctx.rotate(slashAngle);
         ctx.strokeStyle = 'silver';
         ctx.lineWidth = 2;
-
         for (let i = 0; i < 3; i++) {
           const offsetY = -10 + i * 10;
           ctx.beginPath();
@@ -304,7 +311,6 @@ export default function BearGameCanvas() {
           ctx.lineTo(25, offsetY - 5);
           ctx.stroke();
         }
-
         ctx.restore();
       }
     };
