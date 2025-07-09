@@ -81,13 +81,7 @@ export default function BearGameCanvas() {
     }
     if (!chatActive) keys.current[e.key] = true;
   };
-          }
-          return !prev;
-        ;
-        return;
-      
-      if (!chatActive) keys.current[e.key] = true;
-    ;
+}
 
     const handleKeyUp = (e) => {
       if (!chatActive) keys.current[e.key] = false;
