@@ -67,6 +67,12 @@ export default function BearGameCanvas() {
         setChatActive(prev => {
           if (!prev) {
             setTimeout(() => inputRef.current?.focus(), 0);
+          } else {
+            if (inputValue.trim() !== "") {
+              chatMessageRef.current = inputValue.trim();
+              chatTimerRef.current = 180;
+              setInputValue("");
+            }
           }
           return !prev;
         });
