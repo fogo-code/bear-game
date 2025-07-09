@@ -155,8 +155,8 @@ export default function BearGameCanvas() {
           countdown--;
           if (countdown <= 0) {
           clearInterval(timer);
-          setIsDead(false);
           remove(ref(db, `players/${playerId.current}`));
+          setTimeout(() => setIsDead(false), 100);
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
             setIsDead(false);
@@ -204,7 +204,7 @@ export default function BearGameCanvas() {
         if (other.health <= 0) continue;
         const dx = other.x - newX;
         const dy = other.y - newY;
-        if (Math.sqrt(dx * dx + dy * dy) < radius * 1.8) {
+        if (Math.sqrt(dx * dx + dy * dy) < radius * 1.2) {
           blocked = true;
           break;
         }
