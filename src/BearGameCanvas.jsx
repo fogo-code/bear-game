@@ -148,16 +148,40 @@ export default function BearGameCanvas() {
       const events = snapshot.val();
       if (!events) return;
 
-      Object.entries(events).forEach(([eventId, { angle }]) => {
-        playerRef.current.health = Math.max(0, playerRef.current.health - 10);
-        playerRef.current.x += Math.cos(angle) * 10;
-        playerRef.current.y += Math.sin(angle) * 10;
+      Object.entries(events).forEach(([eventId, event]) => {
+        const damage = event.type === 'charge' ? 20 : 10;
+        playerRef.current.health = Math.max(0, playerRef.current.health - damage);
+        playerRef.current.x += Math.cos(event.angle) * 10;
+        playerRef.current.y += Math.sin(event.angle) * 10;
         set(ref(db, `damageEvents/${localPlayerId}/${eventId}`), null);
         syncToFirebase();
       });
     });
 
     const update = () => {
+      // Charge attack
+      if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
+        playerRef.current.isCharging = true;
+        const angle = playerRef.current.angle;
+        playerRef.current.x += Math.cos(angle) * 30;
+        playerRef.current.y += Math.sin(angle) * 30;
+        Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+          const dx = other.x - playerRef.current.x;
+          const dy = other.y - playerRef.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 50 && other.health > 0) {
+            push(ref(db, `damageEvents/${id}`), {
+              from: playerId.current,
+              angle,
+              timestamp: Date.now(),
+              type: 'charge'
+            });
+          }
+        });
+        setTimeout(() => {
+          playerRef.current.isCharging = false;
+        }, 1000);
+      }
       if (playerRef.current.health <= 0) {
         // Respawn after a short delay
         setTimeout(() => {
