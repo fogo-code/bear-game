@@ -4,7 +4,8 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.17");
+  console.log("🐻 BearCanvas updated build: v2.18");
+  console.log("Your player ID:", playerId.current);
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -47,7 +48,7 @@ export default function BearGameCanvas() {
       slash: p.slash ?? null
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
-    onDisconnect(playerRefPath).remove();
+    // onDisconnect(playerRefPath).remove(); // Temporarily disabled for testing
     set(playerRefPath, data);
   };
 
@@ -157,8 +158,8 @@ export default function BearGameCanvas() {
       Object.entries(events).forEach(([eventId, event]) => {
         const damage = event.type === 'charge' ? 30 : 10;
         playerRef.current.health = Math.max(0, playerRef.current.health - damage);
-        playerRef.current.x += Math.cos(event.angle) * 40;
-        playerRef.current.y += Math.sin(event.angle) * 40;
+        playerRef.current.x += Math.cos(event.angle) * 100;
+        playerRef.current.y += Math.sin(event.angle) * 100;
         set(ref(db, `damageEvents/${localPlayerId}/${eventId}`), null);
         syncToFirebase();
       });
