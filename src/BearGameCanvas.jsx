@@ -4,7 +4,6 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const playerId = useRef(
@@ -19,6 +18,7 @@ export default function BearGameCanvas() {
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
+  const dashCooldownRef = useRef(0);
   const mousePosRef = useRef({ x: 0, y: 0 });
   const slashPosRef = useRef({ x: 0, y: 0, angle: 0 });
   const bearImgRef = useRef(new Image());
@@ -114,6 +114,7 @@ export default function BearGameCanvas() {
           push(ref(db, `damageEvents/${id}`), {
             from: localPlayerId,
             angle,
+            type: 'slash',
             timestamp: Date.now()
           });
         }
@@ -133,6 +134,29 @@ export default function BearGameCanvas() {
 
       if (!chatActive && document.activeElement !== inputRef.current) {
         keys.current[e.key] = true;
+
+        if (e.key === 'e' && dashCooldownRef.current <= 0) {
+          const player = playerRef.current;
+          const angle = player.angle;
+          player.x += Math.cos(angle) * 100;
+          player.y += Math.sin(angle) * 100;
+          dashCooldownRef.current = 60;
+          syncToFirebase();
+
+          Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+            const dx = other.x - player.x;
+            const dy = other.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 40 && other.health > 0) {
+              push(ref(db, `damageEvents/${id}`), {
+                from: localPlayerId,
+                angle,
+                type: 'charge',
+                timestamp: Date.now()
+              });
+            }
+          });
+        }
       }
     };
 
@@ -158,14 +182,13 @@ export default function BearGameCanvas() {
         Object.entries(data).filter(([id]) => id !== localPlayerId)
       );
       otherPlayersRef.current = filtered;
-      if (data[localPlayerId]?.health <= 0 && playerRef.current.health > 0 && !isDead && respawnCountdown === null) {
+      if (data[localPlayerId]?.health <= 0 && !isDead && respawnCountdown === null) {
         playerRef.current.health = 0;
         setIsDead(true);
-        syncToFirebase();
+        setRespawnCountdown(3);
       }
     });
-
-    onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
+onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
       const events = snapshot.val();
       if (!events) return;
       Object.entries(events).forEach(([id, event]) => {
@@ -177,7 +200,6 @@ export default function BearGameCanvas() {
         chatMessageRef.current = null;
         lastChatRef.current = null;
         playerRef.current.slash = null;
-        console.log("✅ Player respawned");
         syncToFirebase();
       });
     });
@@ -203,6 +225,7 @@ export default function BearGameCanvas() {
       }
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
+      if (dashCooldownRef.current > 0) dashCooldownRef.current--;
 
       if (chatTimerRef.current > 0) {
         chatTimerRef.current--;
@@ -296,7 +319,6 @@ export default function BearGameCanvas() {
       remove(ref(db, `players/${localPlayerId}`));
     };
   }, []);
-
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
