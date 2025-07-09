@@ -32,7 +32,7 @@ export default function BearGameCanvas() {
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
-    if (isDead) return;
+    if (isDead && playerRef.current.health <= 0) return;
     const now = Date.now();
     if (now - lastSyncTime < 150) return;
     lastSyncTime = now;
@@ -144,8 +144,12 @@ export default function BearGameCanvas() {
         playerRef.current.x += Math.cos(event.angle) * 100;
         playerRef.current.y += Math.sin(event.angle) * 100;
         set(ref(db, `damageEvents/${localPlayerId}/${id}`), null);
-        syncToFirebase();
-      });
+        chatMessageRef.current = null;
+              lastChatRef.current = null;
+              playerRef.current.slash = null;
+              console.log("✅ Player respawned");
+              syncToFirebase();
+            });
     });
 
     const update = () => {
