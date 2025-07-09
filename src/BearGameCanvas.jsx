@@ -34,7 +34,7 @@ export default function BearGameCanvas() {
       y: p.y,
       angle: p.angle ?? 0,
       health: p.health,
-      chat: chatMessageRef.current || "",
+      chat: chatMessageRef.current ?? lastChatRef.current ?? "",
       username: "Player"
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
@@ -76,6 +76,7 @@ export default function BearGameCanvas() {
             lastChatRef.current = chatMessageRef.current;
           }
           setChatActive(false);
+          keys.current = {}; // Clear key states to prevent speed-up
         }
         return;
       }
@@ -225,7 +226,7 @@ export default function BearGameCanvas() {
         drawBear(
           playerRef.current.x,
           playerRef.current.y,
-          lastChatRef.current || chatMessageRef.current,
+          chatMessageRef.current ?? lastChatRef.current,
           "You",
           playerRef.current.angle,
           playerRef.current.health
