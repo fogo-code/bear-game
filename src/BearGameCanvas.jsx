@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, push } from 'firebase/database';
+import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -34,10 +34,12 @@ export default function BearGameCanvas() {
       chat: chatMessageRef.current || "",
       username: "Player"
     };
-    set(ref(db, `players/${playerId.current}`), data);
+    const playerRefPath = ref(db, `players/${playerId.current}`);
+    onDisconnect(playerRefPath).remove(); // auto-remove on disconnect
+    set(playerRefPath, data);
   };
 
-  useEffect(() => {
+    useEffect(() => {
     const canvas = canvasRef.current;
     const localPlayerId = playerId.current;
     const ctx = canvas.getContext("2d");
