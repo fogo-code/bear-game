@@ -13,7 +13,7 @@ export default function BearGameCanvas() {
       return id;
     })()
   );
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, angle: 0, health: 100 });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100 });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -181,7 +181,8 @@ export default function BearGameCanvas() {
 
     const draw = () => {
       const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#3e5e36';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
         ctx.save();
