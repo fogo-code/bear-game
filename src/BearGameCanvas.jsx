@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
   const canvasRef = useRef(null);
+  const inputRef = useRef(null);
   const playerId = useRef(
     localStorage.getItem("bearPlayerId") || (() => {
       const id = uuidv4();
@@ -23,6 +24,7 @@ export default function BearGameCanvas() {
   const chatMessageRef = useRef(null);
   const chatTimerRef = useRef(0);
   const [inputValue, setInputValue] = useState("");
+  const [chatActive, setChatActive] = useState(false);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -35,12 +37,15 @@ export default function BearGameCanvas() {
       username: "Player"
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
-    onDisconnect(playerRefPath).remove(); // auto-remove on disconnect
+    onDisconnect(playerRefPath).remove();
     set(playerRefPath, data);
   };
 
-    useEffect(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
     const localPlayerId = playerId.current;
     const ctx = canvas.getContext("2d");
 
@@ -57,11 +62,21 @@ export default function BearGameCanvas() {
     mousePosRef.current.y = playerRef.current.y;
 
     const handleKeyDown = (e) => {
-      keys.current[e.key] = true;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setChatActive(prev => {
+          if (!prev) {
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }
+          return !prev;
+        });
+        return;
+      }
+      if (!chatActive) keys.current[e.key] = true;
     };
 
     const handleKeyUp = (e) => {
-      keys.current[e.key] = false;
+      if (!chatActive) keys.current[e.key] = false;
     };
 
     const handleMouseMove = (e) => {
@@ -71,6 +86,7 @@ export default function BearGameCanvas() {
     };
 
     const handleClick = () => {
+      if (chatActive) return;
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -109,9 +125,7 @@ export default function BearGameCanvas() {
     onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
       const filteredData = Object.entries(data).reduce((acc, [id, val]) => {
-        if (id !== localPlayerId) {
-          acc[id] = val;
-        }
+        if (id !== localPlayerId) acc[id] = val;
         return acc;
       }, {});
       otherPlayersRef.current = filteredData;
@@ -139,110 +153,62 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      const { speed } = playerRef.current;
-      let x = playerRef.current.x;
-      let y = playerRef.current.y;
+      if (!chatActive) {
+        const { speed } = playerRef.current;
+        let x = playerRef.current.x;
+        let y = playerRef.current.y;
 
-      if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
-      if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
-      if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
-      if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
+        if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
+        if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
+        if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
+        if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
 
-      playerRef.current.x = x;
-      playerRef.current.y = y;
+        playerRef.current.x = x;
+        playerRef.current.y = y;
 
-      const dx = mousePosRef.current.x - x;
-      const dy = mousePosRef.current.y - y;
-      const rawAngle = Math.atan2(dy, dx);
-      playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
-
-      if (clawTimeRef.current > 0) {
-        clawTimeRef.current -= 1;
+        const dx = mousePosRef.current.x - x;
+        const dy = mousePosRef.current.y - y;
+        const rawAngle = Math.atan2(dy, dx);
+        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
       }
 
-      if (chatTimerRef.current > 0) {
-        chatTimerRef.current--;
-      } else {
-        chatMessageRef.current = null;
-      }
+      if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
+      if (chatTimerRef.current > 0) chatTimerRef.current--;
+      else chatMessageRef.current = null;
 
       syncToFirebase();
     };
 
-    const drawClaw = (ctx, x, y, angle) => {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle);
-      ctx.strokeStyle = 'silver';
-      ctx.lineWidth = 2;
-
-      for (let i = 0; i < 3; i++) {
-        const offsetY = -10 + i * 10;
-        ctx.beginPath();
-        ctx.moveTo(0, offsetY);
-        ctx.lineTo(25, offsetY - 5);
-        ctx.stroke();
-      }
-
-      ctx.restore();
-    };
-
-    const drawGrassTexture = (ctx, width, height) => {
-      const patternCanvas = document.createElement("canvas");
-      patternCanvas.width = 20;
-      patternCanvas.height = 20;
-      const pctx = patternCanvas.getContext("2d");
-
-      pctx.fillStyle = '#355e3b';
-      pctx.fillRect(0, 0, 20, 20);
-
-      pctx.strokeStyle = '#4c9a2a';
-      pctx.beginPath();
-      pctx.moveTo(0, 10);
-      pctx.lineTo(20, 10);
-      pctx.stroke();
-
-      pctx.strokeStyle = '#3f7d20';
-      pctx.beginPath();
-      pctx.moveTo(10, 0);
-      pctx.lineTo(10, 20);
-      pctx.stroke();
-
-      const pattern = ctx.createPattern(patternCanvas, 'repeat');
-      ctx.fillStyle = pattern;
-      ctx.fillRect(0, 0, width, height);
-    };
-
-    const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle - Math.PI / 2);
-      ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
-      ctx.restore();
-
-      if (username) {
-        ctx.font = "14px Arial";
-        ctx.fillStyle = "yellow";
-        ctx.textAlign = "center";
-        ctx.fillText(username, x, y - 60);
-      }
-
-      if (chat) {
-        ctx.font = "16px Arial";
-        ctx.fillStyle = "white";
-        ctx.textAlign = "center";
-        ctx.fillText(chat, x, y - 40);
-      }
-
-      ctx.fillStyle = "red";
-      ctx.fillRect(x - 40, y - 70, 80, 5);
-      ctx.fillStyle = "lime";
-      ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
-    };
-
     const draw = () => {
       const ctx = canvas.getContext("2d");
-      drawGrassTexture(ctx, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const drawBear = (x, y, chat, username, angle = 0, health = 100) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle - Math.PI / 2);
+        ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
+        ctx.restore();
+
+        if (username) {
+          ctx.font = "14px Arial";
+          ctx.fillStyle = "yellow";
+          ctx.textAlign = "center";
+          ctx.fillText(username, x, y - 60);
+        }
+
+        if (chat) {
+          ctx.font = "16px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(chat, x, y - 40);
+        }
+
+        ctx.fillStyle = "red";
+        ctx.fillRect(x - 40, y - 70, 80, 5);
+        ctx.fillStyle = "lime";
+        ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
+      };
 
       if (bearLoadedRef.current) {
         drawBear(
@@ -260,7 +226,21 @@ export default function BearGameCanvas() {
 
       if (clawTimeRef.current > 0) {
         const { x: sx, y: sy, angle: slashAngle } = slashPosRef.current;
-        drawClaw(ctx, sx, sy, slashAngle);
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(slashAngle);
+        ctx.strokeStyle = 'silver';
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < 3; i++) {
+          const offsetY = -10 + i * 10;
+          ctx.beginPath();
+          ctx.moveTo(0, offsetY);
+          ctx.lineTo(25, offsetY - 5);
+          ctx.stroke();
+        }
+
+        ctx.restore();
       }
     };
 
@@ -280,7 +260,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       remove(ref(db, `players/${localPlayerId}`));
     };
-  }, []);
+  }, [chatActive]);
 
   const handleChatSubmit = (e) => {
     e.preventDefault();
@@ -288,32 +268,28 @@ export default function BearGameCanvas() {
       chatMessageRef.current = inputValue.trim();
       chatTimerRef.current = 180;
       setInputValue("");
+      setChatActive(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-green-900">
+    <div className="relative w-screen h-screen overflow-hidden">
       <canvas
         ref={canvasRef}
-        width={800}
-        height={600}
-        className="border border-black rounded-lg"
+        className="absolute top-0 left-0 z-0"
       ></canvas>
-      <form onSubmit={handleChatSubmit} className="mt-4">
-        <input
-          type="text"
-          className="p-2 rounded border border-gray-400"
-          placeholder="Type your message..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="ml-2 px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          Send
-        </button>
-      </form>
+      {chatActive && (
+        <form onSubmit={handleChatSubmit} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+          <input
+            ref={inputRef}
+            type="text"
+            className="p-2 rounded border border-gray-400 bg-white text-black"
+            placeholder="Type your message..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+          />
+        </form>
+      )}
     </div>
   );
 }
