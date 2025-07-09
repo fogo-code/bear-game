@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, push } from 'firebase/database';
+import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -46,6 +46,7 @@ export default function BearGameCanvas() {
       slash: p.slash ?? null
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
+    onDisconnect(playerRefPath).remove();
     set(playerRefPath, data);
   };
 
