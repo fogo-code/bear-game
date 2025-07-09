@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
+import { ref, set, onValue, remove, push } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -30,6 +30,7 @@ export default function BearGameCanvas() {
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
   const [respawnCountdown, setRespawnCountdown] = useState(null);
+  const [isDead, setIsDead] = useState(false);
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
@@ -94,36 +95,6 @@ export default function BearGameCanvas() {
       mousePosRef.current.y = e.clientY - rect.top;
     };
 
-    const handleClick = () => {
-      if (chatActive || clawTimeRef.current > 0) return;
-      const player = playerRef.current;
-      const mouse = mousePosRef.current;
-      const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-      const slash = {
-        x: player.x + Math.cos(angle) * (player.radius + 5),
-        y: player.y + Math.sin(angle) * (player.radius + 5),
-        angle,
-        timestamp: Date.now()
-      };
-      slashPosRef.current = slash;
-      playerRef.current.slash = slash;
-      clawTimeRef.current = 10;
-      syncToFirebase();
-
-      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-        const dx = other.x - slashPosRef.current.x;
-        const dy = other.y - slashPosRef.current.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 40 && other.health > 0) {
-          push(ref(db, `damageEvents/${id}`), {
-            from: localPlayerId,
-            angle,
-            timestamp: Date.now()
-          });
-        }
-      });
-    };
-
     const handleBeforeUnload = () => {
       remove(ref(db, `players/${localPlayerId}`));
     };
@@ -131,7 +102,6 @@ export default function BearGameCanvas() {
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("click", handleClick);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     const playersRef = ref(db, 'players');
@@ -145,6 +115,7 @@ export default function BearGameCanvas() {
 
       if (data[localPlayerId] && data[localPlayerId].health <= 0 && playerRef.current.health > 0) {
         playerRef.current.health = 0;
+        setIsDead(true);
         syncToFirebase();
       }
     });
@@ -165,6 +136,28 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
+      if (isDead && respawnCountdown === null) {
+        let countdown = 3;
+        setRespawnCountdown(countdown);
+        const countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            setRespawnCountdown(null);
+            setIsDead(false);
+            playerRef.current.health = 100;
+            playerRef.current.x = Math.random() * 700 + 50;
+            playerRef.current.y = Math.random() * 500 + 50;
+            syncToFirebase();
+          } else {
+            setRespawnCountdown(countdown);
+          }
+        }, 1000);
+        return;
+      }
+
+      if (isDead) return;
+
       if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
         playerRef.current.isCharging = true;
         const angle = playerRef.current.angle;
@@ -188,42 +181,38 @@ export default function BearGameCanvas() {
         }, 2000);
       }
 
-      if (playerRef.current.health <= 0 && respawnCountdown === null) {
-        let countdown = 3;
-        setRespawnCountdown(countdown);
-        const countdownInterval = setInterval(() => {
-          countdown--;
-          if (countdown <= 0) {
-            clearInterval(countdownInterval);
-            setRespawnCountdown(null);
-            playerRef.current.health = 100;
-            playerRef.current.x = Math.random() * 700 + 50;
-            playerRef.current.y = Math.random() * 500 + 50;
-            syncToFirebase();
-          } else {
-            setRespawnCountdown(countdown);
-          }
-        }, 1000);
+      const { speed, radius } = playerRef.current;
+      let x = playerRef.current.x;
+      let y = playerRef.current.y;
+      let newX = x;
+      let newY = y;
+
+      if (keys.current["w"] || keys.current["ArrowUp"]) newY -= speed;
+      if (keys.current["s"] || keys.current["ArrowDown"]) newY += speed;
+      if (keys.current["a"] || keys.current["ArrowLeft"]) newX -= speed;
+      if (keys.current["d"] || keys.current["ArrowRight"]) newX += speed;
+
+      let canMove = true;
+      for (const other of Object.values(otherPlayersRef.current)) {
+        if (other.health <= 0) continue;
+        const dx = other.x - newX;
+        const dy = other.y - newY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < radius * 2) {
+          canMove = false;
+          break;
+        }
       }
 
-      if (!chatActive) {
-        const { speed } = playerRef.current;
-        let x = playerRef.current.x;
-        let y = playerRef.current.y;
-
-        if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
-        if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
-        if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
-        if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
-
-        playerRef.current.x = x;
-        playerRef.current.y = y;
-
-        const dx = mousePosRef.current.x - x;
-        const dy = mousePosRef.current.y - y;
-        const rawAngle = Math.atan2(dy, dx);
-        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
+      if (canMove) {
+        playerRef.current.x = newX;
+        playerRef.current.y = newY;
       }
+
+      const dx = mousePosRef.current.x - playerRef.current.x;
+      const dy = mousePosRef.current.y - playerRef.current.y;
+      const rawAngle = Math.atan2(dy, dx);
+      playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
 
@@ -332,7 +321,6 @@ export default function BearGameCanvas() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("click", handleClick);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       remove(ref(db, `players/${localPlayerId}`));
     };
