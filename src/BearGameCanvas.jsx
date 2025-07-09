@@ -26,7 +26,6 @@ export default function BearGameCanvas() {
   const [inputValue, setInputValue] = useState("");
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
-  const justSentMessageRef = useRef(false);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -49,7 +48,6 @@ export default function BearGameCanvas() {
     canvas.height = window.innerHeight;
 
     const localPlayerId = playerId.current;
-    const ctx = canvas.getContext("2d");
 
     bearImgRef.current.src = process.env.PUBLIC_URL + "/bear.png";
     bearImgRef.current.onload = () => {
@@ -72,14 +70,14 @@ export default function BearGameCanvas() {
         } else {
           if (inputValue.trim() !== "") {
             chatMessageRef.current = inputValue.trim();
-            chatTimerRef.current = 180;
             lastChatRef.current = inputValue.trim();
-            justSentMessageRef.current = true;
+            chatTimerRef.current = 180;
+            setInputValue("");
             syncToFirebase();
           }
-          setInputValue("");
           setChatActive(false);
-          keys.current = {}; // Clear key states to prevent speed-up
+          // Clear all keys
+          keys.current = {};
         }
         return;
       }
@@ -87,7 +85,7 @@ export default function BearGameCanvas() {
     };
 
     const handleKeyUp = (e) => {
-      if (!chatActive) keys.current[e.key] = false;
+      keys.current[e.key] = false;
     };
 
     const handleMouseMove = (e) => {
@@ -140,13 +138,6 @@ export default function BearGameCanvas() {
         return acc;
       }, {});
       otherPlayersRef.current = filteredData;
-
-      if (data[localPlayerId] && data[localPlayerId].health <= 0) {
-        playerRef.current.health = 100;
-        playerRef.current.x = Math.random() * 700 + 50;
-        playerRef.current.y = Math.random() * 500 + 50;
-        syncToFirebase();
-      }
     });
 
     const damageRef = ref(db, `damageEvents/${localPlayerId}`);
@@ -184,17 +175,8 @@ export default function BearGameCanvas() {
       }
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
-
-      if (chatTimerRef.current > 0) {
-        chatTimerRef.current--;
-      } else {
-        if (!justSentMessageRef.current) {
-          lastChatRef.current = chatMessageRef.current;
-          chatMessageRef.current = null;
-        } else {
-          justSentMessageRef.current = false;
-        }
-      }
+      if (chatTimerRef.current > 0) chatTimerRef.current--;
+      else chatMessageRef.current = null;
 
       syncToFirebase();
     };
@@ -283,19 +265,6 @@ export default function BearGameCanvas() {
     };
   }, [chatActive]);
 
-  const handleChatSubmit = (e) => {
-    e.preventDefault();
-    if (inputValue.trim() !== "") {
-      chatMessageRef.current = inputValue.trim();
-      chatTimerRef.current = 180;
-      lastChatRef.current = inputValue.trim();
-      justSentMessageRef.current = true;
-      syncToFirebase();
-      setInputValue("");
-      setChatActive(false);
-    }
-  };
-
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       <canvas
@@ -303,7 +272,18 @@ export default function BearGameCanvas() {
         className="absolute top-0 left-0 z-0"
       ></canvas>
       {chatActive && (
-        <form onSubmit={handleChatSubmit} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (inputValue.trim() !== "") {
+            chatMessageRef.current = inputValue.trim();
+            lastChatRef.current = inputValue.trim();
+            chatTimerRef.current = 180;
+            setInputValue("");
+            syncToFirebase();
+          }
+          setChatActive(false);
+          keys.current = {};
+        }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
             ref={inputRef}
             type="text"
@@ -316,4 +296,4 @@ export default function BearGameCanvas() {
       )}
     </div>
   );
-} 
+}
