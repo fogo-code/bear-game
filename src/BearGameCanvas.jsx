@@ -14,7 +14,7 @@ export default function BearGameCanvas() {
     })()
   );
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, vx: 0, vy: 0, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
   const clawTimeRef = useRef(0);
@@ -138,8 +138,8 @@ export default function BearGameCanvas() {
         if (e.key === 'e' && dashCooldownRef.current <= 0) {
           const player = playerRef.current;
           const angle = player.angle;
-          player.x += Math.cos(angle) * 100;
-          player.y += Math.sin(angle) * 100;
+          player.vx += Math.cos(angle) * 20;
+          player.vy += Math.sin(angle) * 20;
           dashCooldownRef.current = 60;
           syncToFirebase();
 
@@ -207,13 +207,23 @@ onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
     const update = () => {
       if (!chatActive && !isDead) {
         const { speed } = playerRef.current;
-        let x = playerRef.current.x;
-        let y = playerRef.current.y;
+        let { x, y, vx, vy } = playerRef.current;
 
-        if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
-        if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
-        if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
-        if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
+        if (keys.current["w"] || keys.current["ArrowUp"]) vy -= speed;
+        if (keys.current["s"] || keys.current["ArrowDown"]) vy += speed;
+        if (keys.current["a"] || keys.current["ArrowLeft"]) vx -= speed;
+        if (keys.current["d"] || keys.current["ArrowRight"]) vx += speed;
+
+        vx *= 0.9; // friction
+        vy *= 0.9;
+
+        x += vx;
+        y += vy;
+
+        playerRef.current.x = x;
+        playerRef.current.y = y;
+        playerRef.current.vx = vx;
+        playerRef.current.vy = vy;
 
         playerRef.current.x = x;
         playerRef.current.y = y;
