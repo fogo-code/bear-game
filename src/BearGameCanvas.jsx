@@ -32,6 +32,7 @@ export default function BearGameCanvas() {
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
+    if (isDead) return;
     const now = Date.now();
     if (now - lastSyncTime < 150) return;
     lastSyncTime = now;
