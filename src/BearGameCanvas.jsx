@@ -93,10 +93,15 @@ export default function BearGameCanvas() {
       });
     };
 
+    const handleBeforeUnload = () => {
+      remove(ref(db, `players/${localPlayerId}`));
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("click", handleClick);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     const playersRef = ref(db, 'players');
     onValue(playersRef, (snapshot) => {
@@ -270,6 +275,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("click", handleClick);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       remove(ref(db, `players/${localPlayerId}`));
     };
   }, []);
