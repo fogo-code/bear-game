@@ -4,17 +4,17 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  
-
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const playerId = useRef(
-  localStorage.getItem("bearPlayerId") || (() => {
-    const id = uuidv4();
-    localStorage.setItem("bearPlayerId", id);
-    return id;
-  })()
-);
+    localStorage.getItem("bearPlayerId") || (() => {
+      const id = uuidv4();
+      localStorage.setItem("bearPlayerId", id);
+      return id;
+    })()
+  );
+  console.log("🐻 BearGameCanvas Build: v2.19");
+  console.log("Your player ID:", playerId.current);
 
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
@@ -34,7 +34,7 @@ export default function BearGameCanvas() {
   let lastSyncTime = 0;
   const syncToFirebase = () => {
     const now = Date.now();
-    if (now - lastSyncTime < 150) return; // limit to ~6-7 times per second
+    if (now - lastSyncTime < 150) return;
     lastSyncTime = now;
 
     const p = playerRef.current;
@@ -48,7 +48,6 @@ export default function BearGameCanvas() {
       slash: p.slash ?? null
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
-    // onDisconnect(playerRefPath).remove(); // Temporarily disabled for testing
     set(playerRefPath, data);
   };
 
@@ -166,7 +165,6 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      // Charge attack
       if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
         playerRef.current.isCharging = true;
         const angle = playerRef.current.angle;
@@ -189,11 +187,12 @@ export default function BearGameCanvas() {
           playerRef.current.isCharging = false;
         }, 2000);
       }
-      if (playerRef.current.health <= 0) {
-        // Respawn after a short delay
+
+      if (playerRef.current.health <= 0 && respawnCountdown === null) {
         let countdown = 3;
         setRespawnCountdown(countdown);
         const countdownInterval = setInterval(() => {
+          countdown--;
           if (countdown <= 0) {
             clearInterval(countdownInterval);
             setRespawnCountdown(null);
@@ -203,10 +202,8 @@ export default function BearGameCanvas() {
             syncToFirebase();
           } else {
             setRespawnCountdown(countdown);
-            countdown--;
           }
         }, 1000);
-        return;
       }
 
       if (!chatActive) {
@@ -370,7 +367,7 @@ export default function BearGameCanvas() {
           />
         </form>
       )}
-    {respawnCountdown !== null && (
+      {respawnCountdown !== null && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 text-white text-4xl font-bold">
           Respawning in {respawnCountdown}...
         </div>
