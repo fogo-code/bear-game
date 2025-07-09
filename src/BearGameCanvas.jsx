@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.12");
+  console.log("🐻 BearCanvas updated build: v2.14");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -168,8 +168,8 @@ export default function BearGameCanvas() {
       if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
         playerRef.current.isCharging = true;
         const angle = playerRef.current.angle;
-        playerRef.current.x += Math.cos(angle) * 50;
-        playerRef.current.y += Math.sin(angle) * 50;
+        playerRef.current.x += Math.cos(angle) * 80;
+        playerRef.current.y += Math.sin(angle) * 80;
         Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
           const dx = other.x - playerRef.current.x;
           const dy = other.y - playerRef.current.y;
@@ -189,12 +189,19 @@ export default function BearGameCanvas() {
       }
       if (playerRef.current.health <= 0) {
         // Respawn after a short delay
-        setTimeout(() => {
-          playerRef.current.health = 100;
-          playerRef.current.x = Math.random() * 700 + 50;
-          playerRef.current.y = Math.random() * 500 + 50;
-          syncToFirebase();
-        }, 2000);
+        let countdown = 3;
+        const countdownInterval = setInterval(() => {
+          if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            playerRef.current.health = 100;
+            playerRef.current.x = Math.random() * 700 + 50;
+            playerRef.current.y = Math.random() * 500 + 50;
+            syncToFirebase();
+          } else {
+            console.log(`Respawning in ${countdown}...`);
+            countdown--;
+          }
+        }, 1000);
         return;
       }
 
@@ -358,6 +365,11 @@ export default function BearGameCanvas() {
             onChange={(e) => setInputValue(e.target.value)}
           />
         </form>
+      )}
+    {playerRef.current.health <= 0 && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 text-white text-4xl font-bold">
+          Respawning...
+        </div>
       )}
     </div>
   );
