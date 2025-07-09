@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, get, update } from 'firebase/database';
+import { ref, set, onValue, remove, push } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -84,11 +84,10 @@ export default function BearGameCanvas() {
         const dy = other.y - slashPosRef.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 40) {
-          const newHealth = Math.max(0, other.health - 10);
-          update(ref(db, `players/${id}`), {
-            health: newHealth,
-            x: other.x + Math.cos(angle) * 10,
-            y: other.y + Math.sin(angle) * 10
+          push(ref(db, `damageEvents/${id}`), {
+            from: localPlayerId,
+            angle,
+            timestamp: Date.now()
           });
         }
       });
@@ -110,13 +109,26 @@ export default function BearGameCanvas() {
       }, {});
       otherPlayersRef.current = filteredData;
 
-      // If your own player data exists and your health is 0, respawn
       if (data[localPlayerId] && data[localPlayerId].health <= 0) {
         playerRef.current.health = 100;
         playerRef.current.x = Math.random() * 700 + 50;
         playerRef.current.y = Math.random() * 500 + 50;
         syncToFirebase();
       }
+    });
+
+    const damageRef = ref(db, `damageEvents/${localPlayerId}`);
+    onValue(damageRef, (snapshot) => {
+      const events = snapshot.val();
+      if (!events) return;
+
+      Object.entries(events).forEach(([eventId, { angle }]) => {
+        playerRef.current.health = Math.max(0, playerRef.current.health - 10);
+        playerRef.current.x += Math.cos(angle) * 10;
+        playerRef.current.y += Math.sin(angle) * 10;
+        set(ref(db, `damageEvents/${localPlayerId}/${eventId}`), null);
+        syncToFirebase();
+      });
     });
 
     const update = () => {
