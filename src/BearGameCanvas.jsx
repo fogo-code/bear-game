@@ -4,6 +4,8 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
+  console.log("🐻 BearCanvas updated build: v2.3");
+
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
   const playerId = useRef(
@@ -16,7 +18,6 @@ export default function BearGameCanvas() {
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100 });
   const otherPlayersRef = useRef({});
   const keys = useRef({});
-  const pressedKeys = useRef(new Set());
   const clawTimeRef = useRef(0);
   const mousePosRef = useRef({ x: 0, y: 0 });
   const slashPosRef = useRef({ x: 0, y: 0, angle: 0 });
@@ -63,8 +64,6 @@ export default function BearGameCanvas() {
     mousePosRef.current.y = playerRef.current.y;
 
     const handleKeyDown = (e) => {
-      if (e.repeat) return;
-
       if (e.key === 'Enter') {
         e.preventDefault();
         if (!chatActive) {
@@ -76,23 +75,17 @@ export default function BearGameCanvas() {
             lastChatRef.current = inputValue.trim();
             chatTimerRef.current = 180;
             setInputValue("");
-            syncToFirebase();
+            setTimeout(() => syncToFirebase(), 50);
           }
           setChatActive(false);
-          keys.current = {};
-          pressedKeys.current.clear();
         }
         return;
       }
-      if (!chatActive) {
-        keys.current[e.key] = true;
-        pressedKeys.current.add(e.key);
-      }
+      if (!chatActive) keys.current[e.key] = true;
     };
 
     const handleKeyUp = (e) => {
       keys.current[e.key] = false;
-      pressedKeys.current.delete(e.key);
     };
 
     const handleMouseMove = (e) => {
@@ -162,24 +155,27 @@ export default function BearGameCanvas() {
     });
 
     const update = () => {
-      if (!chatActive) {
-        const { speed } = playerRef.current;
-        let x = playerRef.current.x;
-        let y = playerRef.current.y;
-
-        if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
-        if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
-        if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
-        if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
-
-        playerRef.current.x = x;
-        playerRef.current.y = y;
-
-        const dx = mousePosRef.current.x - x;
-        const dy = mousePosRef.current.y - y;
-        const rawAngle = Math.atan2(dy, dx);
-        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
+      if (chatActive) {
+        keys.current = {}; // reset all keys while chatting
+        return;
       }
+
+      const { speed } = playerRef.current;
+      let x = playerRef.current.x;
+      let y = playerRef.current.y;
+
+      if (keys.current["w"] || keys.current["ArrowUp"]) y -= speed;
+      if (keys.current["s"] || keys.current["ArrowDown"]) y += speed;
+      if (keys.current["a"] || keys.current["ArrowLeft"]) x -= speed;
+      if (keys.current["d"] || keys.current["ArrowRight"]) x += speed;
+
+      playerRef.current.x = x;
+      playerRef.current.y = y;
+
+      const dx = mousePosRef.current.x - x;
+      const dy = mousePosRef.current.y - y;
+      const rawAngle = Math.atan2(dy, dx);
+      playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
       if (chatTimerRef.current > 0) chatTimerRef.current--;
@@ -286,11 +282,9 @@ export default function BearGameCanvas() {
             lastChatRef.current = inputValue.trim();
             chatTimerRef.current = 180;
             setInputValue("");
-            syncToFirebase();
+            setTimeout(() => syncToFirebase(), 50);
           }
           setChatActive(false);
-          keys.current = {};
-          pressedKeys.current.clear();
         }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
             ref={inputRef}
