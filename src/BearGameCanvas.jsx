@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.10");
+  console.log("🐻 BearCanvas updated build: v2.12");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -94,7 +94,7 @@ export default function BearGameCanvas() {
     };
 
     const handleClick = () => {
-      if (chatActive) return;
+      if (chatActive || clawTimeRef.current > 0) return;
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -154,7 +154,7 @@ export default function BearGameCanvas() {
       if (!events) return;
 
       Object.entries(events).forEach(([eventId, event]) => {
-        const damage = event.type === 'charge' ? 20 : 10;
+        const damage = event.type === 'charge' ? 30 : 10;
         playerRef.current.health = Math.max(0, playerRef.current.health - damage);
         playerRef.current.x += Math.cos(event.angle) * 10;
         playerRef.current.y += Math.sin(event.angle) * 10;
@@ -168,8 +168,8 @@ export default function BearGameCanvas() {
       if (!chatActive && keys.current['e'] && !playerRef.current.isCharging) {
         playerRef.current.isCharging = true;
         const angle = playerRef.current.angle;
-        playerRef.current.x += Math.cos(angle) * 30;
-        playerRef.current.y += Math.sin(angle) * 30;
+        playerRef.current.x += Math.cos(angle) * 50;
+        playerRef.current.y += Math.sin(angle) * 50;
         Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
           const dx = other.x - playerRef.current.x;
           const dy = other.y - playerRef.current.y;
@@ -185,7 +185,7 @@ export default function BearGameCanvas() {
         });
         setTimeout(() => {
           playerRef.current.isCharging = false;
-        }, 1000);
+        }, 2000);
       }
       if (playerRef.current.health <= 0) {
         // Respawn after a short delay
