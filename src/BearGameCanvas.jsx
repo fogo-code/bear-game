@@ -3,10 +3,8 @@ import db from './firebase';
 import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
-let lastSyncTime = 0; // ✅ Track last sync timestamp
-
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.4");
+  console.log("🐻 BearCanvas updated build: v2.5");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -57,9 +55,7 @@ export default function BearGameCanvas() {
     bearImgRef.current.onload = () => {
       bearLoadedRef.current = true;
       playerRef.current.angle = 0;
-      setTimeout(() => {
-        syncToFirebase();
-      }, 100);
+      syncToFirebase();
     };
 
     mousePosRef.current.x = playerRef.current.x + 1;
@@ -77,9 +73,10 @@ export default function BearGameCanvas() {
             lastChatRef.current = inputValue.trim();
             chatTimerRef.current = 180;
             setInputValue("");
-            setTimeout(() => syncToFirebase(), 50);
+            syncToFirebase();
           }
           setChatActive(false);
+          keys.current = {}; // Reset movement keys
         }
         return;
       }
@@ -158,7 +155,7 @@ export default function BearGameCanvas() {
 
     const update = () => {
       if (chatActive) {
-        keys.current = {}; // reset all keys while chatting
+        keys.current = {}; // reset keys if typing
         return;
       }
 
@@ -188,11 +185,7 @@ export default function BearGameCanvas() {
         chatMessageRef.current = null;
       }
 
-      const now = Date.now();
-      if (now - lastSyncTime > 100) {
-        syncToFirebase();
-        lastSyncTime = now;
-      }
+      syncToFirebase();
     };
 
     const draw = () => {
@@ -293,9 +286,10 @@ export default function BearGameCanvas() {
             lastChatRef.current = inputValue.trim();
             chatTimerRef.current = 180;
             setInputValue("");
-            setTimeout(() => syncToFirebase(), 50);
+            syncToFirebase();
           }
           setChatActive(false);
+          keys.current = {}; // Also reset keys on form submit
         }} className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <input
             ref={inputRef}
