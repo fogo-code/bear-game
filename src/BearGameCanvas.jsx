@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.14");
+  console.log("🐻 BearCanvas updated build: v2.17");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -28,6 +28,7 @@ export default function BearGameCanvas() {
   const [inputValue, setInputValue] = useState("");
   const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
+  const [respawnCountdown, setRespawnCountdown] = useState(null);
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
@@ -156,8 +157,8 @@ export default function BearGameCanvas() {
       Object.entries(events).forEach(([eventId, event]) => {
         const damage = event.type === 'charge' ? 30 : 10;
         playerRef.current.health = Math.max(0, playerRef.current.health - damage);
-        playerRef.current.x += Math.cos(event.angle) * 10;
-        playerRef.current.y += Math.sin(event.angle) * 10;
+        playerRef.current.x += Math.cos(event.angle) * 40;
+        playerRef.current.y += Math.sin(event.angle) * 40;
         set(ref(db, `damageEvents/${localPlayerId}/${eventId}`), null);
         syncToFirebase();
       });
@@ -190,15 +191,17 @@ export default function BearGameCanvas() {
       if (playerRef.current.health <= 0) {
         // Respawn after a short delay
         let countdown = 3;
+        setRespawnCountdown(countdown);
         const countdownInterval = setInterval(() => {
           if (countdown <= 0) {
             clearInterval(countdownInterval);
+            setRespawnCountdown(null);
             playerRef.current.health = 100;
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
             syncToFirebase();
           } else {
-            console.log(`Respawning in ${countdown}...`);
+            setRespawnCountdown(countdown);
             countdown--;
           }
         }, 1000);
@@ -366,9 +369,9 @@ export default function BearGameCanvas() {
           />
         </form>
       )}
-    {playerRef.current.health <= 0 && (
+    {respawnCountdown !== null && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 text-white text-4xl font-bold">
-          Respawning...
+          Respawning in {respawnCountdown}...
         </div>
       )}
     </div>
