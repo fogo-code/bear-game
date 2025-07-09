@@ -4,6 +4,33 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
+  
+  const canvasRef = useRef(null);
+  const inputRef = useRef(null);
+  const playerId = useRef(
+    localStorage.getItem("bearPlayerId") || (() => {
+      const id = uuidv4();
+      localStorage.setItem("bearPlayerId", id);
+      return id;
+    })()
+  );
+
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
+  const otherPlayersRef = useRef({});
+  const keys = useRef({});
+  const clawTimeRef = useRef(0);
+  const mousePosRef = useRef({ x: 0, y: 0 });
+  const slashPosRef = useRef({ x: 0, y: 0, angle: 0 });
+  const bearImgRef = useRef(new Image());
+  const bearLoadedRef = useRef(false);
+  const chatMessageRef = useRef(null);
+  const chatTimerRef = useRef(0);
+  const [inputValue, setInputValue] = useState("");
+  const lastChatRef = useRef(null);
+  const [chatActive, setChatActive] = useState(false);
+  const [respawnCountdown, setRespawnCountdown] = useState(null);
+  const [isDead, setIsDead] = useState(false);
+
   useEffect(() => {
     if (!isDead || respawnCountdown !== null) return;
 
@@ -30,31 +57,6 @@ export default function BearGameCanvas() {
 
     return () => clearInterval(interval);
   }, [isDead, respawnCountdown]);
-  const canvasRef = useRef(null);
-  const inputRef = useRef(null);
-  const playerId = useRef(
-    localStorage.getItem("bearPlayerId") || (() => {
-      const id = uuidv4();
-      localStorage.setItem("bearPlayerId", id);
-      return id;
-    })()
-  );
-
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 4, angle: 0, health: 100, slash: null });
-  const otherPlayersRef = useRef({});
-  const keys = useRef({});
-  const clawTimeRef = useRef(0);
-  const mousePosRef = useRef({ x: 0, y: 0 });
-  const slashPosRef = useRef({ x: 0, y: 0, angle: 0 });
-  const bearImgRef = useRef(new Image());
-  const bearLoadedRef = useRef(false);
-  const chatMessageRef = useRef(null);
-  const chatTimerRef = useRef(0);
-  const [inputValue, setInputValue] = useState("");
-  const lastChatRef = useRef(null);
-  const [chatActive, setChatActive] = useState(false);
-  const [respawnCountdown, setRespawnCountdown] = useState(null);
-  const [isDead, setIsDead] = useState(false);
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
