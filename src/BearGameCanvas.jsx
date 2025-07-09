@@ -81,6 +81,7 @@ export default function BearGameCanvas() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
@@ -117,18 +118,210 @@ export default function BearGameCanvas() {
             type: 'slash',
             timestamp: Date.now()
           });
-          const knockRef = ref(db, `players/${id}/knockback`);
-          set(knockRef, {
-            vx: Math.cos(angle) * 10,
-            vy: Math.sin(angle) * 10,
-            timestamp: Date.now()
-          });
         }
       });
     };
 
-    // ...rest of the code (handlers, update loop, etc.)
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && document.activeElement !== inputRef.current) {
+        e.preventDefault();
+        if (!chatActive) {
+          setChatActive(true);
+          keys.current = {};
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }
+        return;
+      }
 
+      if (!chatActive && document.activeElement !== inputRef.current) {
+        keys.current[e.key] = true;
+
+        if (e.key === 'e' && dashCooldownRef.current <= 0) {
+          const player = playerRef.current;
+          const angle = player.angle;
+          player.vx += Math.cos(angle) * 10;
+          player.vy += Math.sin(angle) * 10;
+          dashCooldownRef.current = 60;
+          syncToFirebase();
+
+          Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+            const dx = other.x - player.x;
+            const dy = other.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 40 && other.health > 0) {
+              push(ref(db, `damageEvents/${id}`), {
+                from: localPlayerId,
+                angle,
+                type: 'charge',
+                timestamp: Date.now()
+              });
+            }
+          });
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => { keys.current[e.key] = false; };
+    const handleMouseMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mousePosRef.current.x = e.clientX - rect.left;
+      mousePosRef.current.y = e.clientY - rect.top;
+    };
+    const handleBeforeUnload = () => {
+      remove(ref(db, `players/${localPlayerId}`));
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("click", handleClick);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    onValue(ref(db, 'players'), (snapshot) => {
+      const data = snapshot.val() || {};
+      const others = {};
+      Object.entries(data).forEach(([id, player]) => {
+        if (id !== localPlayerId) others[id] = player;
+      });
+      otherPlayersRef.current = others;
+    });
+
+    const update = () => {
+      if (!chatActive && !isDead) {
+        const { speed } = playerRef.current;
+        let { x, y, vx, vy } = playerRef.current;
+
+        if (keys.current["w"] || keys.current["ArrowUp"]) vy -= speed;
+        if (keys.current["s"] || keys.current["ArrowDown"]) vy += speed;
+        if (keys.current["a"] || keys.current["ArrowLeft"]) vx -= speed;
+        if (keys.current["d"] || keys.current["ArrowRight"]) vx += speed;
+
+        vx *= 0.85;
+        vy *= 0.85;
+
+        x += vx;
+        y += vy;
+
+        playerRef.current.vx = vx;
+        playerRef.current.vy = vy;
+        playerRef.current.x = x;
+        playerRef.current.y = y;
+
+        Object.values(otherPlayersRef.current).forEach((other) => {
+          const dx = x - other.x;
+          const dy = y - other.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = playerRef.current.radius * 1.6;
+          if (dist < minDist && other.health > 0) {
+            const angle = Math.atan2(dy, dx);
+            const overlap = minDist - dist;
+            x += Math.cos(angle) * overlap / 2;
+            y += Math.sin(angle) * overlap / 2;
+          }
+        });
+
+        const dx = mousePosRef.current.x - x;
+        const dy = mousePosRef.current.y - y;
+        const rawAngle = Math.atan2(dy, dx);
+        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
+      }
+
+      if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
+      if (dashCooldownRef.current > 0) dashCooldownRef.current--;
+
+      if (chatTimerRef.current > 0) {
+        chatTimerRef.current--;
+      } else if (chatMessageRef.current !== null) {
+        lastChatRef.current = chatMessageRef.current;
+        chatMessageRef.current = null;
+      }
+
+      if (playerRef.current.health <= 0 && !isDead) {
+        setIsDead(true);
+      }
+
+      syncToFirebase();
+    };
+
+    const draw = () => {
+      ctx.fillStyle = '#3e5e36';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const drawBear = (x, y, chat, username, angle = 0, health = 100, slash = null) => {
+        if (health <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle - Math.PI / 2);
+        ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
+        ctx.restore();
+
+        if (username) {
+          ctx.font = "14px Arial";
+          ctx.fillStyle = "yellow";
+          ctx.textAlign = "center";
+          ctx.fillText(username, x, y - 60);
+        }
+
+        if (chat) {
+          ctx.font = "16px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(chat, x, y - 40);
+        }
+
+        ctx.fillStyle = "red";
+        ctx.fillRect(x - 40, y - 70, 80, 5);
+        ctx.fillStyle = "lime";
+        ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
+
+        if (slash && Date.now() - slash.timestamp < 300) {
+          ctx.save();
+          ctx.translate(slash.x, slash.y);
+          ctx.rotate(slash.angle);
+          ctx.strokeStyle = 'silver';
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 3; i++) {
+            const offsetY = -10 + i * 10;
+            ctx.beginPath();
+            ctx.moveTo(0, offsetY);
+            ctx.lineTo(25, offsetY - 5);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      };
+
+      if (bearLoadedRef.current) {
+        drawBear(
+          playerRef.current.x,
+          playerRef.current.y,
+          chatMessageRef.current ?? lastChatRef.current,
+          "You",
+          playerRef.current.angle,
+          playerRef.current.health,
+          playerRef.current.slash
+        );
+        Object.values(otherPlayersRef.current).forEach(player => {
+          drawBear(player.x, player.y, player.chat, player.username, player.angle, player.health, player.slash);
+        });
+      }
+    };
+
+    const gameLoop = () => {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    };
+    gameLoop();
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      remove(ref(db, `players/${localPlayerId}`));
+    };
   }, []);
 
   return (
