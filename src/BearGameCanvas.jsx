@@ -107,19 +107,6 @@ export default function BearGameCanvas() {
       playerRef.current.slash = slash;
       clawTimeRef.current = 10;
       syncToFirebase();
-      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-        const dx = other.x - slash.x;
-        const dy = other.y - slash.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 40 && other.health > 0) {
-          push(ref(db, `damageEvents/${id}`), {
-            from: localPlayerId,
-            angle,
-            type: 'slash',
-            timestamp: Date.now()
-          });
-        }
-      });
     };
 
     const handleKeyDown = (e) => {
@@ -143,20 +130,6 @@ export default function BearGameCanvas() {
           player.vy += Math.sin(angle) * 10;
           dashCooldownRef.current = 60;
           syncToFirebase();
-
-          Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-            const dx = other.x - player.x;
-            const dy = other.y - player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 40 && other.health > 0) {
-              push(ref(db, `damageEvents/${id}`), {
-                from: localPlayerId,
-                angle,
-                type: 'charge',
-                timestamp: Date.now()
-              });
-            }
-          });
         }
       }
     };
@@ -186,6 +159,21 @@ export default function BearGameCanvas() {
       otherPlayersRef.current = others;
     });
 
+    onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
+      const events = snapshot.val();
+      if (!events) return;
+      Object.entries(events).forEach(([eventId, event]) => {
+        if (!event) return;
+        const damage = event.type === 'charge' ? 30 : 10;
+        playerRef.current.health = Math.max(0, playerRef.current.health - damage);
+
+        playerRef.current.vx += Math.cos(event.angle) * 5;
+        playerRef.current.vy += Math.sin(event.angle) * 5;
+
+        remove(ref(db, `damageEvents/${localPlayerId}/${eventId}`));
+      });
+    });
+
     const update = () => {
       if (!chatActive && !isDead) {
         const { speed } = playerRef.current;
@@ -202,11 +190,6 @@ export default function BearGameCanvas() {
         x += vx;
         y += vy;
 
-        playerRef.current.vx = vx;
-        playerRef.current.vy = vy;
-        playerRef.current.x = x;
-        playerRef.current.y = y;
-
         Object.values(otherPlayersRef.current).forEach((other) => {
           const dx = x - other.x;
           const dy = y - other.y;
@@ -215,15 +198,19 @@ export default function BearGameCanvas() {
           if (dist < minDist && other.health > 0) {
             const angle = Math.atan2(dy, dx);
             const overlap = minDist - dist;
-            x += Math.cos(angle) * overlap / 2;
-            y += Math.sin(angle) * overlap / 2;
+            x += Math.cos(angle) * (overlap / 2);
+            y += Math.sin(angle) * (overlap / 2);
           }
         });
 
+        playerRef.current.x = x;
+        playerRef.current.y = y;
+        playerRef.current.vx = vx;
+        playerRef.current.vy = vy;
+
         const dx = mousePosRef.current.x - x;
         const dy = mousePosRef.current.y - y;
-        const rawAngle = Math.atan2(dy, dx);
-        playerRef.current.angle = Math.round(rawAngle * 10000) / 10000;
+        playerRef.current.angle = Math.atan2(dy, dx);
       }
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
