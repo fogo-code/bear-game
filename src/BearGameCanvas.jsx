@@ -138,8 +138,8 @@ export default function BearGameCanvas() {
         if (e.key === 'e' && dashCooldownRef.current <= 0) {
           const player = playerRef.current;
           const angle = player.angle;
-          player.vx += Math.cos(angle) * 20;
-          player.vy += Math.sin(angle) * 20;
+          player.vx += Math.cos(angle) * 10;
+          player.vy += Math.sin(angle) * 10;
           dashCooldownRef.current = 60;
           syncToFirebase();
 
@@ -214,14 +214,28 @@ onValue(ref(db, `damageEvents/${localPlayerId}`), (snapshot) => {
         if (keys.current["a"] || keys.current["ArrowLeft"]) vx -= speed;
         if (keys.current["d"] || keys.current["ArrowRight"]) vx += speed;
 
-        vx *= 0.9; // friction
-        vy *= 0.9;
+        vx *= 0.85; // friction
+        vy *= 0.85;
 
         x += vx;
         y += vy;
 
         playerRef.current.x = x;
         playerRef.current.y = y;
+
+        // Collision with other bears
+        Object.values(otherPlayersRef.current).forEach((other) => {
+          const dx = playerRef.current.x - other.x;
+          const dy = playerRef.current.y - other.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = playerRef.current.radius * 2;
+          if (dist < minDist && other.health > 0) {
+            const angle = Math.atan2(dy, dx);
+            const overlap = minDist - dist;
+            playerRef.current.x += Math.cos(angle) * overlap / 2;
+            playerRef.current.y += Math.sin(angle) * overlap / 2;
+          }
+        });
         playerRef.current.vx = vx;
         playerRef.current.vy = vy;
 
