@@ -24,6 +24,7 @@ export default function BearGameCanvas() {
   const chatMessageRef = useRef(null);
   const chatTimerRef = useRef(0);
   const [inputValue, setInputValue] = useState("");
+  const lastChatRef = useRef(null);
   const [chatActive, setChatActive] = useState(false);
 
   const syncToFirebase = () => {
@@ -64,15 +65,19 @@ export default function BearGameCanvas() {
     const handleKeyDown = (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        setChatActive(prev => {
-          if (!prev) {
-            setTimeout(() => inputRef.current?.focus(), 0);
-          } else {
-            if (inputValue.trim() !== "") {
-              chatMessageRef.current = inputValue.trim();
-              chatTimerRef.current = 180;
-              setInputValue("");
-            }
+        if (!chatActive) {
+          setChatActive(true);
+          setTimeout(() => inputRef.current?.focus(), 0);
+        } else {
+          if (inputValue.trim() !== "") {
+            chatMessageRef.current = inputValue.trim();
+            chatTimerRef.current = 180;
+            setInputValue("");
+          }
+          setChatActive(false);
+        }
+        return;
+      }
           }
           return !prev;
         });
@@ -180,7 +185,8 @@ export default function BearGameCanvas() {
 
       if (clawTimeRef.current > 0) clawTimeRef.current -= 1;
       if (chatTimerRef.current > 0) chatTimerRef.current--;
-      else chatMessageRef.current = null;
+      else lastChatRef.current = chatMessageRef.current;
+      chatMessageRef.current = null;
 
       syncToFirebase();
     };
@@ -221,7 +227,7 @@ export default function BearGameCanvas() {
         drawBear(
           playerRef.current.x,
           playerRef.current.y,
-          chatMessageRef.current,
+          lastChatRef.current || chatMessageRef.current,
           "You",
           playerRef.current.angle,
           playerRef.current.health
