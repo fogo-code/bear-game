@@ -37,7 +37,8 @@ export default function BearGameCanvas() {
       angle: p.angle ?? 0,
       health: p.health,
       chat: chatMessageRef.current ?? lastChatRef.current ?? "",
-      username: "Player"
+      username: "Player",
+      slash: p.slash ?? null
     };
     const playerRefPath = ref(db, `players/${playerId.current}`);
     onDisconnect(playerRefPath).remove();
@@ -135,6 +136,11 @@ export default function BearGameCanvas() {
         return acc;
       }, {});
       otherPlayersRef.current = filteredData;
+
+      if (data[localPlayerId] && data[localPlayerId].health <= 0 && playerRef.current.health > 0) {
+        playerRef.current.health = 0;
+        syncToFirebase();
+      }
     });
 
     const damageRef = ref(db, `damageEvents/${localPlayerId}`);
