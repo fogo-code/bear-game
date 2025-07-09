@@ -36,13 +36,13 @@ export default function BearGameCanvas() {
       health: p.health,
       chat: chatMessageRef.current || "",
       username: "Player"
-    }
+    };
     const playerRefPath = ref(db, `players/${playerId.current}`);
     onDisconnect(playerRefPath).remove();
     set(playerRefPath, data);
   };
 
-  useEffect()  
+  useEffect(() => {
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -63,25 +63,24 @@ export default function BearGameCanvas() {
     mousePosRef.current.y = playerRef.current.y;
 
     const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!chatActive) {
-        setChatActive(true);
-        setTimeout(() => inputRef.current?.focus(), 0);
-      } else {
-        if (inputValue.trim() !== "") {
-          chatMessageRef.current = inputValue.trim();
-          chatTimerRef.current = 180;
-          setInputValue("");
-          lastChatRef.current = chatMessageRef.current;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!chatActive) {
+          setChatActive(true);
+          setTimeout(() => inputRef.current?.focus(), 0);
+        } else {
+          if (inputValue.trim() !== "") {
+            chatMessageRef.current = inputValue.trim();
+            chatTimerRef.current = 180;
+            setInputValue("");
+            lastChatRef.current = chatMessageRef.current;
+          }
+          setChatActive(false);
         }
-        setChatActive(false);
+        return;
       }
-      return;
-    }
-    if (!chatActive) keys.current[e.key] = true;
-  };
-}
+      if (!chatActive) keys.current[e.key] = true;
+    };
 
     const handleKeyUp = (e) => {
       if (!chatActive) keys.current[e.key] = false;
@@ -272,7 +271,7 @@ export default function BearGameCanvas() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       remove(ref(db, `players/${localPlayerId}`));
     };
-   [chatActive];
+  }, [chatActive]);
 
   const handleChatSubmit = (e) => {
     e.preventDefault();
@@ -304,4 +303,4 @@ export default function BearGameCanvas() {
       )}
     </div>
   );
-
+}
