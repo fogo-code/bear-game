@@ -4,7 +4,7 @@ import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
-  console.log("🐻 BearCanvas updated build: v2.7");
+  console.log("🐻 BearCanvas updated build: v2.9");
 
   const canvasRef = useRef(null);
   const inputRef = useRef(null);
@@ -66,6 +66,7 @@ export default function BearGameCanvas() {
         e.preventDefault();
         if (!chatActive) {
           setChatActive(true);
+          keys.current = {};
           setTimeout(() => inputRef.current?.focus(), 0);
         } else {
           if (inputValue.trim() !== "") {
@@ -80,7 +81,9 @@ export default function BearGameCanvas() {
         }
         return;
       }
-      if (!chatActive) keys.current[e.key] = true;
+      if (!chatActive && document.activeElement !== inputRef.current) {
+        keys.current[e.key] = true;
+      }
     };
 
     const handleKeyUp = (e) => {
