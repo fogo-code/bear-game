@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, get } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -79,14 +79,20 @@ export default function BearGameCanvas() {
       };
       clawTimeRef.current = 10;
 
-      // Damage other players on click
       Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
         const dx = other.x - slashPosRef.current.x;
         const dy = other.y - slashPosRef.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 40) {
-          const targetRef = ref(db, `players/${id}/health`);
-          set(targetRef, Math.max(0, other.health - 10));
+          const targetHealthRef = ref(db, `players/${id}/health`);
+          set(targetHealthRef, Math.max(0, other.health - 10));
+
+          // Knockback
+          const knockbackDist = 10;
+          const knockbackX = other.x + Math.cos(angle) * knockbackDist;
+          const knockbackY = other.y + Math.sin(angle) * knockbackDist;
+          set(ref(db, `players/${id}/x`), knockbackX);
+          set(ref(db, `players/${id}/y`), knockbackY);
         }
       });
     };
@@ -199,7 +205,6 @@ export default function BearGameCanvas() {
         ctx.fillText(chat, x, y - 40);
       }
 
-      // Draw health bar
       ctx.fillStyle = "red";
       ctx.fillRect(x - 40, y - 70, 80, 5);
       ctx.fillStyle = "lime";
