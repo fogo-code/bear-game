@@ -153,10 +153,8 @@ export default function BearGameCanvas() {
     onChildAdded(dmgRef, (snapshot) => {
       const evt = snapshot.val();
       if (!evt) return;
-      const { type, angle, timestamp } = evt;
-      if (timestamp <= lastDamageTime.current) return;
-      lastDamageTime.current = timestamp;
-
+      const { type, angle } = evt;
+      // TEMPORARY: Always apply the damage (for debug)
       const p = playerRef.current;
       if (p.health <= 0) return;
 
