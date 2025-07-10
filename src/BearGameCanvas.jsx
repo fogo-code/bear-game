@@ -1,4 +1,4 @@
-// FINAL FIX — Damage Sync + Respawn + Charge Fix + Hide Dead Bear
+// FINAL FIX — Damage Sync + Respawn + Chat Restore + Charge Fix + Hide Dead Bear
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, remove, push, onDisconnect, onValue, get } from 'firebase/database';
@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
   const canvasRef = useRef(null);
+  const inputRef = useRef(null);
+  const [chatMode, setChatMode] = useState(false);
   const [playerId] = useState(() => {
     const existing = localStorage.getItem("bearPlayerId");
     if (existing) return existing;
@@ -14,7 +16,7 @@ export default function BearGameCanvas() {
     return newId;
   });
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, vx: 0, vy: 0, angle: 0, health: 100, slash: null });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
   const keys = useRef({});
   const clawTimeRef = useRef(0);
   const dashCooldownRef = useRef(0);
@@ -33,7 +35,8 @@ export default function BearGameCanvas() {
       angle: p.angle,
       health: p.health,
       username: "Player",
-      slash: p.slash ?? null
+      slash: p.slash ?? null,
+      chat: p.chat ?? ""
     });
   };
 
@@ -58,7 +61,7 @@ export default function BearGameCanvas() {
             p.y = Math.random() * 500 + 50;
             p.vx = 0;
             p.vy = 0;
-            keys.current = {}; // Reset all keys to prevent stuck movement
+            keys.current = {};
             syncToFirebase();
             return 0;
           }
@@ -108,30 +111,8 @@ export default function BearGameCanvas() {
     };
     const pollInterval = setInterval(pollDamage, 100);
 
-    const handleClick = () => {
-      if (clawTimeRef.current > 0 || isDead) return;
-      const p = playerRef.current;
-      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
-      const slash = {
-        x: p.x + Math.cos(angle) * (p.radius + 5),
-        y: p.y + Math.sin(angle) * (p.radius + 5),
-        angle,
-        timestamp: Date.now()
-      };
-      p.slash = slash;
-      clawTimeRef.current = 10;
-
-      Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
-        const dx = op.x - slash.x;
-        const dy = op.y - slash.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 60 && op.health > 0) {
-          sendDamage(id, "slash", angle);
-        }
-      });
-    };
-
     const handleKeyDown = (e) => {
+      if (chatMode) return;
       if (isDead) return;
       if (e.key === 'e' && dashCooldownRef.current <= 0) {
         const p = playerRef.current;
@@ -153,13 +134,40 @@ export default function BearGameCanvas() {
       keys.current[e.key] = true;
     };
 
-    const handleKeyUp = (e) => keys.current[e.key] = false;
+    const handleKeyUp = (e) => {
+      if (chatMode) return;
+      keys.current[e.key] = false;
+    };
+
     const handleMouseMove = (e) => {
       const rect = canvas.getBoundingClientRect();
       mousePosRef.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
       };
+    };
+
+    const handleClick = () => {
+      if (chatMode || isDead || clawTimeRef.current > 0) return;
+      const p = playerRef.current;
+      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
+      const slash = {
+        x: p.x + Math.cos(angle) * (p.radius + 5),
+        y: p.y + Math.sin(angle) * (p.radius + 5),
+        angle,
+        timestamp: Date.now()
+      };
+      p.slash = slash;
+      clawTimeRef.current = 10;
+
+      Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
+        const dx = op.x - slash.x;
+        const dy = op.y - slash.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 60 && op.health > 0) {
+          sendDamage(id, "slash", angle);
+        }
+      });
     };
 
     onValue(ref(db, 'players'), (snapshot) => {
@@ -226,7 +234,7 @@ export default function BearGameCanvas() {
       ctx.fillStyle = "#3e5e36";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const drawBear = (x, y, angle, health, slash) => {
+      const drawBear = (x, y, angle, health, slash, chat) => {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle - Math.PI / 2);
@@ -252,14 +260,19 @@ export default function BearGameCanvas() {
           }
           ctx.restore();
         }
+
+        if (chat) {
+          ctx.fillStyle = 'white';
+          ctx.font = '16px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(chat, x, y - 85);
+        }
       };
 
       const p = playerRef.current;
-      if (!isDead) {
-        drawBear(p.x, p.y, p.angle, p.health, p.slash);
-      }
+      if (!isDead) drawBear(p.x, p.y, p.angle, p.health, p.slash, p.chat);
       Object.values(otherPlayersRef.current).forEach(op => {
-        drawBear(op.x, op.y, op.angle, op.health, op.slash);
+        drawBear(op.x, op.y, op.angle, op.health, op.slash, op.chat);
       });
 
       if (isDead && respawnTimer > 0) {
@@ -280,5 +293,36 @@ export default function BearGameCanvas() {
     return () => clearInterval(pollInterval);
   }, [isDead, playerId]);
 
-  return <canvas ref={canvasRef} className="w-full h-full absolute top-0 left-0 z-0" />;
+  useEffect(() => {
+    const handleChatKey = (e) => {
+      if (e.key === 'Enter') {
+        if (!chatMode) {
+          setChatMode(true);
+          setTimeout(() => inputRef.current?.focus(), 10);
+        } else {
+          const message = inputRef.current?.value || "";
+          playerRef.current.chat = message;
+          syncToFirebase();
+          inputRef.current.value = "";
+          setChatMode(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleChatKey);
+    return () => window.removeEventListener('keydown', handleChatKey);
+  }, [chatMode]);
+
+  return (
+    <>
+      <canvas ref={canvasRef} className="w-full h-full absolute top-0 left-0 z-0" />
+      {chatMode && (
+        <input
+          ref={inputRef}
+          type="text"
+          className="absolute bottom-10 left-1/2 transform -translate-x-1/2 p-2 rounded bg-white text-black z-10"
+          placeholder="Type your message..."
+        />
+      )}
+    </>
+  );
 }
