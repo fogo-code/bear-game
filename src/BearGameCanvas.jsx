@@ -1,7 +1,7 @@
-// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v3 w/ Real-time Listener)
+// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v4: Real-time Damage Listener Fix)
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onChildAdded, remove, push, onDisconnect, onValue, child, get } from 'firebase/database';
+import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -74,9 +74,8 @@ export default function BearGameCanvas() {
     bearImgRef.current.onload = () => (bearLoadedRef.current = true);
 
     const sendDamage = async (id, type, angle) => {
-      const damageRef = ref(db, `damageEvents/${id}`);
-      const newRef = push(damageRef);
-      await set(newRef, {
+      const damageRef = push(ref(db, `damageEvents/${id}`));
+      await set(damageRef, {
         from: playerId,
         type,
         angle,
@@ -150,23 +149,23 @@ export default function BearGameCanvas() {
     });
 
     const dmgRef = ref(db, `damageEvents/${playerId}`);
-    onValue(dmgRef, (snapshot) => {
-      const events = snapshot.val() || {};
+    onChildAdded(dmgRef, (snapshot) => {
+      const evt = snapshot.val();
+      if (!evt) return;
+      const { type, angle } = evt;
       const p = playerRef.current;
-      Object.entries(events).forEach(([key, evt]) => {
-        if (!evt) return;
-        const { type, angle, timestamp } = evt;
-        if (type === 'slash') {
-          p.health = Math.max(0, p.health - 10);
-          p.vx += Math.cos(angle) * 6;
-          p.vy += Math.sin(angle) * 6;
-        } else if (type === 'charge') {
-          p.health = Math.max(0, p.health - 30);
-          p.vx += Math.cos(angle) * 10;
-          p.vy += Math.sin(angle) * 10;
-        }
-        remove(ref(db, `damageEvents/${playerId}/${key}`));
-      });
+
+      if (type === 'slash') {
+        p.health = Math.max(0, p.health - 10);
+        p.vx += Math.cos(angle) * 6;
+        p.vy += Math.sin(angle) * 6;
+      } else if (type === 'charge') {
+        p.health = Math.max(0, p.health - 30);
+        p.vx += Math.cos(angle) * 10;
+        p.vy += Math.sin(angle) * 10;
+      }
+
+      remove(ref(db, `damageEvents/${playerId}/${snapshot.key}`));
     });
 
     window.addEventListener("keydown", handleKeyDown);
