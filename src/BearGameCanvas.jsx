@@ -1,4 +1,4 @@
-// FULL VERSION WITH FIXES FOR GHOST BEARS, POSITION RESET, AND SMOOTHER KNOCKBACK
+// FIXED VERSION WITH CORRECTED POSITION UPDATES AND NO SNAPBACK
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
@@ -70,10 +70,13 @@ export default function BearGameCanvas() {
         const dy = other.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 50) {
-          if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0, x: other.x, y: other.y };
-          localPlayerStates.current[id].health = Math.max(0, (localPlayerStates.current[id].health ?? 100) - 10);
-          localPlayerStates.current[id].vx = Math.cos(angle) * 5;
-          localPlayerStates.current[id].vy = Math.sin(angle) * 5;
+          if (!localPlayerStates.current[id]) {
+            localPlayerStates.current[id] = { health: other.health, vx: 0, vy: 0, x: other.x, y: other.y };
+          }
+          const state = localPlayerStates.current[id];
+          state.health = Math.max(0, state.health - 10);
+          state.vx += Math.cos(angle) * 5;
+          state.vy += Math.sin(angle) * 5;
         }
       });
     };
@@ -91,10 +94,13 @@ export default function BearGameCanvas() {
           const dy = other.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 60) {
-            if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0, x: other.x, y: other.y };
-            localPlayerStates.current[id].health = Math.max(0, (localPlayerStates.current[id].health ?? 100) - 30);
-            localPlayerStates.current[id].vx = Math.cos(angle) * 10;
-            localPlayerStates.current[id].vy = Math.sin(angle) * 10;
+            if (!localPlayerStates.current[id]) {
+              localPlayerStates.current[id] = { health: other.health, vx: 0, vy: 0, x: other.x, y: other.y };
+            }
+            const state = localPlayerStates.current[id];
+            state.health = Math.max(0, state.health - 30);
+            state.vx += Math.cos(angle) * 10;
+            state.vy += Math.sin(angle) * 10;
           }
         });
       }
@@ -118,7 +124,18 @@ export default function BearGameCanvas() {
       const data = snapshot.val() || {};
       const others = {};
       Object.entries(data).forEach(([id, player]) => {
-        if (id !== playerId.current) others[id] = player;
+        if (id !== playerId.current) {
+          if (!localPlayerStates.current[id]) {
+            localPlayerStates.current[id] = {
+              health: player.health,
+              vx: 0,
+              vy: 0,
+              x: player.x,
+              y: player.y
+            };
+          }
+          others[id] = player;
+        }
       });
       otherPlayersRef.current = others;
     });
@@ -132,9 +149,11 @@ export default function BearGameCanvas() {
       const drawBear = (id, p) => {
         const state = localPlayerStates.current[id] || {};
         const health = state.health ?? p.health;
+        const x = state.x ?? p.x;
+        const y = state.y ?? p.y;
 
         ctx.save();
-        ctx.translate(p.x, p.y);
+        ctx.translate(x, y);
         ctx.rotate(p.angle - Math.PI / 2);
         ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
         ctx.restore();
@@ -155,9 +174,9 @@ export default function BearGameCanvas() {
         }
 
         ctx.fillStyle = "red";
-        ctx.fillRect(p.x - 40, p.y - 70, 80, 5);
+        ctx.fillRect(x - 40, y - 70, 80, 5);
         ctx.fillStyle = "lime";
-        ctx.fillRect(p.x - 40, p.y - 70, (health / 100) * 80, 5);
+        ctx.fillRect(x - 40, y - 70, (health / 100) * 80, 5);
       };
 
       drawBear("you", playerRef.current);
@@ -179,15 +198,13 @@ export default function BearGameCanvas() {
       Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
         const state = localPlayerStates.current[id];
         if (state) {
-          state.x = (state.x ?? other.x) + (state.vx ?? 0);
-          state.y = (state.y ?? other.y) + (state.vy ?? 0);
           state.vx *= 0.9;
           state.vy *= 0.9;
-          other.x = state.x;
-          other.y = state.y;
+          state.x += state.vx;
+          state.y += state.vy;
 
-          const dx = p.x - other.x;
-          const dy = p.y - other.y;
+          const dx = p.x - state.x;
+          const dy = p.y - state.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           const minDist = p.radius * 1.6;
           if (dist < minDist) {
