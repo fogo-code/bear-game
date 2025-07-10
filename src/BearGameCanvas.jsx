@@ -1,7 +1,7 @@
-// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage & Knockback synced, Collision adjusted
+// FINAL FIXED VERSION — Damage Sync + Knockback Bug Fix
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
+import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -22,6 +22,7 @@ export default function BearGameCanvas() {
   const [isDead, setIsDead] = useState(false);
   const [respawnTimer, setRespawnTimer] = useState(0);
   const otherPlayersRef = useRef({});
+  const lastDamageTimestamp = useRef(0);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -46,6 +47,8 @@ export default function BearGameCanvas() {
             playerRef.current.health = 100;
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
+            playerRef.current.vx = 0;
+            playerRef.current.vy = 0;
             syncToFirebase();
             return 0;
           }
@@ -134,23 +137,27 @@ export default function BearGameCanvas() {
       otherPlayersRef.current = others;
     });
 
-    onValue(ref(db, `damageEvents/${playerId.current}`), (snapshot) => {
-      const events = snapshot.val();
-      if (!events) return;
-      Object.entries(events).forEach(([key, evt]) => {
-        const { type, angle } = evt;
-        if (playerRef.current.health <= 0) return;
-        if (type === 'slash') {
-          playerRef.current.health = Math.max(0, playerRef.current.health - 10);
-          playerRef.current.vx += Math.cos(angle) * 6;
-          playerRef.current.vy += Math.sin(angle) * 6;
-        } else if (type === 'charge') {
-          playerRef.current.health = Math.max(0, playerRef.current.health - 30);
-          playerRef.current.vx += Math.cos(angle) * 10;
-          playerRef.current.vy += Math.sin(angle) * 10;
-        }
-        remove(ref(db, `damageEvents/${playerId.current}/${key}`));
-      });
+    onChildAdded(ref(db, `damageEvents/${playerId.current}`), (snapshot) => {
+      const evt = snapshot.val();
+      if (!evt) return;
+      const { type, angle, timestamp } = evt;
+      if (timestamp <= lastDamageTimestamp.current) return;
+      lastDamageTimestamp.current = timestamp;
+
+      const p = playerRef.current;
+      if (p.health <= 0) return;
+
+      if (type === 'slash') {
+        p.health = Math.max(0, p.health - 10);
+        p.vx += Math.cos(angle) * 6;
+        p.vy += Math.sin(angle) * 6;
+      } else if (type === 'charge') {
+        p.health = Math.max(0, p.health - 30);
+        p.vx += Math.cos(angle) * 10;
+        p.vy += Math.sin(angle) * 10;
+      }
+
+      remove(ref(db, `damageEvents/${playerId.current}/${snapshot.key}`));
     });
 
     window.addEventListener("keydown", handleKeyDown);
@@ -165,6 +172,9 @@ export default function BearGameCanvas() {
         if (keys.current['s']) p.vy += p.speed;
         if (keys.current['a']) p.vx -= p.speed;
         if (keys.current['d']) p.vx += p.speed;
+
+        p.vx = Math.max(-20, Math.min(20, p.vx));
+        p.vy = Math.max(-20, Math.min(20, p.vy));
 
         p.vx *= 0.85;
         p.vy *= 0.85;
