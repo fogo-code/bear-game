@@ -1,4 +1,4 @@
-// FULL VERSION WITH LOCAL DAMAGE STATE, KNOCKBACK, SLASH EFFECT, AND PERSISTENT COLLISION
+// FULL VERSION WITH FIXES FOR GHOST BEARS, POSITION RESET, AND SMOOTHER KNOCKBACK
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
@@ -23,6 +23,7 @@ export default function BearGameCanvas() {
   const mousePosRef = useRef({ x: 0, y: 0 });
   const bearImgRef = useRef(new Image());
   const bearLoadedRef = useRef(false);
+  const hasSyncedRef = useRef(false);
 
   let lastSyncTime = 0;
   const syncToFirebase = () => {
@@ -38,6 +39,7 @@ export default function BearGameCanvas() {
       username: "Player",
       slash: p.slash ?? null
     });
+    hasSyncedRef.current = true;
   };
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export default function BearGameCanvas() {
         const dy = other.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 50) {
-          if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0 };
+          if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0, x: other.x, y: other.y };
           localPlayerStates.current[id].health = Math.max(0, (localPlayerStates.current[id].health ?? 100) - 10);
           localPlayerStates.current[id].vx = Math.cos(angle) * 5;
           localPlayerStates.current[id].vy = Math.sin(angle) * 5;
@@ -89,7 +91,7 @@ export default function BearGameCanvas() {
           const dy = other.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 60) {
-            if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0 };
+            if (!localPlayerStates.current[id]) localPlayerStates.current[id] = { health: 100, vx: 0, vy: 0, x: other.x, y: other.y };
             localPlayerStates.current[id].health = Math.max(0, (localPlayerStates.current[id].health ?? 100) - 30);
             localPlayerStates.current[id].vx = Math.cos(angle) * 10;
             localPlayerStates.current[id].vy = Math.sin(angle) * 10;
@@ -112,6 +114,7 @@ export default function BearGameCanvas() {
     window.addEventListener("click", handleClick);
 
     onValue(ref(db, 'players'), (snapshot) => {
+      if (!hasSyncedRef.current) return;
       const data = snapshot.val() || {};
       const others = {};
       Object.entries(data).forEach(([id, player]) => {
@@ -176,10 +179,12 @@ export default function BearGameCanvas() {
       Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
         const state = localPlayerStates.current[id];
         if (state) {
-          other.x += state.vx ?? 0;
-          other.y += state.vy ?? 0;
+          state.x = (state.x ?? other.x) + (state.vx ?? 0);
+          state.y = (state.y ?? other.y) + (state.vy ?? 0);
           state.vx *= 0.9;
           state.vy *= 0.9;
+          other.x = state.x;
+          other.y = state.y;
 
           const dx = p.x - other.x;
           const dy = p.y - other.y;
