@@ -1,5 +1,5 @@
-// FINAL CLEANED VERSION WITH GHOST FIX, CONSISTENT DAMAGE, KNOCKBACK, COLLISION
-import { useEffect, useRef } from 'react';
+// FINAL CLEANED VERSION WITH GHOST FIX, COLLISION, SLASH & CHARGE DAMAGE, AND RESPAWN
+import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
@@ -21,6 +21,8 @@ export default function BearGameCanvas() {
   const mousePosRef = useRef({ x: 0, y: 0 });
   const bearImgRef = useRef(new Image());
   const bearLoadedRef = useRef(false);
+  const [isDead, setIsDead] = useState(false);
+  const [respawnTimer, setRespawnTimer] = useState(0);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -35,6 +37,25 @@ export default function BearGameCanvas() {
   };
 
   useEffect(() => {
+    if (isDead) {
+      setRespawnTimer(3);
+      const countdown = setInterval(() => {
+        setRespawnTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(countdown);
+            setIsDead(false);
+            playerRef.current.health = 100;
+            playerRef.current.x = Math.random() * 700 + 50;
+            playerRef.current.y = Math.random() * 500 + 50;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [isDead]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -43,7 +64,7 @@ export default function BearGameCanvas() {
     bearImgRef.current.onload = () => (bearLoadedRef.current = true);
 
     const handleClick = () => {
-      if (clawTimeRef.current > 0) return;
+      if (clawTimeRef.current > 0 || isDead) return;
       const player = playerRef.current;
       const mouse = mousePosRef.current;
       const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -56,9 +77,9 @@ export default function BearGameCanvas() {
       player.slash = slash;
       clawTimeRef.current = 10;
 
-      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-        if (!localPlayerStates.current[id]) return;
+      Object.entries(otherPlayersRef.current).forEach(([id]) => {
         const state = localPlayerStates.current[id];
+        if (!state || state.health <= 0) return;
         const dx = state.x - slash.x;
         const dy = state.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -72,6 +93,7 @@ export default function BearGameCanvas() {
     };
 
     const handleKeyDown = (e) => {
+      if (isDead) return;
       if (e.key === 'e' && dashCooldownRef.current <= 0) {
         const p = playerRef.current;
         const angle = p.angle;
@@ -79,9 +101,9 @@ export default function BearGameCanvas() {
         p.vy += Math.sin(angle) * 10;
         dashCooldownRef.current = 60;
 
-        Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-          if (!localPlayerStates.current[id]) return;
+        Object.entries(otherPlayersRef.current).forEach(([id]) => {
           const state = localPlayerStates.current[id];
+          if (!state || state.health <= 0) return;
           const dx = state.x - p.x;
           const dy = state.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -163,19 +185,45 @@ export default function BearGameCanvas() {
 
       drawBear("you", playerRef.current);
       Object.entries(otherPlayersRef.current).forEach(([id, p]) => drawBear(id, p));
+
+      if (isDead && respawnTimer > 0) {
+        ctx.fillStyle = 'white';
+        ctx.font = '40px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Respawning in ${respawnTimer}...`, canvas.width / 2, canvas.height / 2);
+      }
     };
 
     const update = () => {
       const p = playerRef.current;
-      if (keys.current['w']) p.vy -= p.speed;
-      if (keys.current['s']) p.vy += p.speed;
-      if (keys.current['a']) p.vx -= p.speed;
-      if (keys.current['d']) p.vx += p.speed;
+      if (!isDead) {
+        if (keys.current['w']) p.vy -= p.speed;
+        if (keys.current['s']) p.vy += p.speed;
+        if (keys.current['a']) p.vx -= p.speed;
+        if (keys.current['d']) p.vx += p.speed;
 
-      p.vx *= 0.85;
-      p.vy *= 0.85;
-      p.x += p.vx;
-      p.y += p.vy;
+        p.vx *= 0.85;
+        p.vy *= 0.85;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+          const state = localPlayerStates.current[id];
+          if (!state) return;
+          const dx = p.x - state.x;
+          const dy = p.y - state.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = p.radius * 1.6;
+          if (dist < minDist) {
+            const angle = Math.atan2(dy, dx);
+            const overlap = minDist - dist;
+            p.x += Math.cos(angle) * (overlap / 2);
+            p.y += Math.sin(angle) * (overlap / 2);
+            state.x -= Math.cos(angle) * (overlap / 2);
+            state.y -= Math.sin(angle) * (overlap / 2);
+          }
+        });
+      }
 
       Object.entries(localPlayerStates.current).forEach(([id, state]) => {
         state.vx *= 0.9;
@@ -190,6 +238,9 @@ export default function BearGameCanvas() {
 
       if (clawTimeRef.current > 0) clawTimeRef.current--;
       if (dashCooldownRef.current > 0) dashCooldownRef.current--;
+
+      if (p.health <= 0 && !isDead) setIsDead(true);
+
       syncToFirebase();
     };
 
@@ -200,10 +251,9 @@ export default function BearGameCanvas() {
     };
 
     loop();
-
     onDisconnect(ref(db, `players/${playerId.current}`)).remove();
     return () => remove(ref(db, `players/${playerId.current}`));
-  }, []);
+  }, [isDead]);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute top-0 left-0 z-0" />;
 }
