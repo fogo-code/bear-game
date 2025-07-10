@@ -119,6 +119,12 @@ export default function BearGameCanvas() {
             type: 'slash',
             timestamp: Date.now()
           });
+
+          if (id in otherPlayersRef.current) {
+            otherPlayersRef.current[id].health = Math.max(0, other.health - 10);
+            otherPlayersRef.current[id].vx = Math.cos(angle) * 5;
+            otherPlayersRef.current[id].vy = Math.sin(angle) * 5;
+          }
         }
       });
     };
@@ -156,6 +162,11 @@ export default function BearGameCanvas() {
                 type: 'charge',
                 timestamp: Date.now()
               });
+              if (id in otherPlayersRef.current) {
+                otherPlayersRef.current[id].health = Math.max(0, other.health - 30);
+                otherPlayersRef.current[id].vx = Math.cos(angle) * 10;
+                otherPlayersRef.current[id].vy = Math.sin(angle) * 10;
+              }
             }
           });
         }
