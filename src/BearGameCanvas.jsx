@@ -53,6 +53,51 @@ export default function BearGameCanvas() {
   }, [playerId]);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (chatMode || isDead) return;
+      keys.current[e.key.toLowerCase()] = true;
+    };
+
+    const handleKeyUp = (e) => {
+      keys.current[e.key.toLowerCase()] = false;
+    };
+
+    const handleMouseMove = (e) => {
+      const rect = canvasRef.current.getBoundingClientRect();
+      mousePosRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    };
+
+    const handleClick = () => {
+      if (chatMode || clawTimeRef.current > 0 || isDead) return;
+      const p = playerRef.current;
+      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
+      const slash = {
+        x: p.x + Math.cos(angle) * (p.radius + 5),
+        y: p.y + Math.sin(angle) * (p.radius + 5),
+        angle,
+        timestamp: Date.now()
+      };
+      p.slash = slash;
+      clawTimeRef.current = 10;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('click', handleClick);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('click', handleClick);
+    };
+  }, [chatMode, isDead]);
+
+  useEffect(() => {
     const playersRef = ref(db, 'players');
     const unsubscribe = onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
@@ -89,7 +134,6 @@ export default function BearGameCanvas() {
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d');
-    let respawnTimer = 0;
 
     const loop = () => {
       const p = playerRef.current;
@@ -131,21 +175,20 @@ export default function BearGameCanvas() {
       if (p.health <= 0 && !isDead) {
         setIsDead(true);
         setRespawnCounter(180);
-        playerRef.current.chat = "I died!";
+        p.chat = "I died!";
       }
 
       if (isDead) {
-        setRespawnCounter(t => {
-          if (t <= 1) {
-            p.health = 100;
-            p.x = Math.random() * (window.innerWidth - 200) + 100;
-            p.y = Math.random() * (window.innerHeight - 200) + 100;
-            p.vx = p.vy = 0;
-            setIsDead(false);
-            return 0;
-          }
-          return t - 1;
-        });
+        if (respawnCounter <= 0) {
+          p.health = 100;
+          p.x = Math.random() * (window.innerWidth - 200) + 100;
+          p.y = Math.random() * (window.innerHeight - 200) + 100;
+          p.vx = p.vy = 0;
+          p.chat = "";
+          setIsDead(false);
+        } else {
+          setRespawnCounter(respawnCounter - 1);
+        }
       }
 
       syncToFirebase();
@@ -153,8 +196,8 @@ export default function BearGameCanvas() {
       ctx.fillStyle = "#1b3b1b";
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-      if (playerRef.current.slash && Date.now() - playerRef.current.slash.timestamp < 150) {
-        const s = playerRef.current.slash;
+      if (p.slash && Date.now() - p.slash.timestamp < 150) {
+        const s = p.slash;
         ctx.strokeStyle = "white";
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -201,9 +244,7 @@ export default function BearGameCanvas() {
     };
 
     requestAnimationFrame(loop);
-  }, [isDead]);
-
-  // ... rest of the unchanged handlers (key, mouse, chat) remain here ...
+  }, [isDead, respawnCounter]);
 
   return (
     <div>
