@@ -1,10 +1,8 @@
-// FINAL FIX — Damage Sync + Polling
+// FINAL FIX — Damage Sync + Respawn + Charge Fix + Hide Dead Bear
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onChildAdded, remove, push, onDisconnect, onValue, get } from 'firebase/database';
+import { ref, set, remove, push, onDisconnect, onValue, get } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
-
-let damageListenerAttached = false;
 
 export default function BearGameCanvas() {
   const canvasRef = useRef(null);
@@ -54,11 +52,13 @@ export default function BearGameCanvas() {
           if (prev <= 1) {
             clearInterval(countdown);
             setIsDead(false);
-            playerRef.current.health = 100;
-            playerRef.current.x = Math.random() * 700 + 50;
-            playerRef.current.y = Math.random() * 500 + 50;
-            playerRef.current.vx = 0;
-            playerRef.current.vy = 0;
+            const p = playerRef.current;
+            p.health = 100;
+            p.x = Math.random() * 700 + 50;
+            p.y = Math.random() * 500 + 50;
+            p.vx = 0;
+            p.vy = 0;
+            keys.current = {}; // Reset all keys to prevent stuck movement
             syncToFirebase();
             return 0;
           }
@@ -136,8 +136,6 @@ export default function BearGameCanvas() {
       if (e.key === 'e' && dashCooldownRef.current <= 0) {
         const p = playerRef.current;
         const angle = p.angle;
-        p.vx += Math.cos(angle) * 10;
-        p.vy += Math.sin(angle) * 10;
         dashCooldownRef.current = 60;
 
         Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
@@ -148,6 +146,9 @@ export default function BearGameCanvas() {
             sendDamage(id, "charge", angle);
           }
         });
+
+        p.vx += Math.cos(angle) * 10;
+        p.vy += Math.sin(angle) * 10;
       }
       keys.current[e.key] = true;
     };
@@ -161,8 +162,7 @@ export default function BearGameCanvas() {
       };
     };
 
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
+    onValue(ref(db, 'players'), (snapshot) => {
       const data = snapshot.val() || {};
       const others = {};
       Object.entries(data).forEach(([id, val]) => {
@@ -255,7 +255,9 @@ export default function BearGameCanvas() {
       };
 
       const p = playerRef.current;
-      drawBear(p.x, p.y, p.angle, p.health, p.slash);
+      if (!isDead) {
+        drawBear(p.x, p.y, p.angle, p.health, p.slash);
+      }
       Object.values(otherPlayersRef.current).forEach(op => {
         drawBear(op.x, op.y, op.angle, op.health, op.slash);
       });
