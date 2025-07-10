@@ -1,4 +1,4 @@
-// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage fixed
+// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage fixed, Collision restored
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, onDisconnect } from 'firebase/database';
@@ -132,13 +132,15 @@ export default function BearGameCanvas() {
     onValue(ref(db, 'players'), (snapshot) => {
       const data = snapshot.val() || {};
       const others = {};
+      const localStates = {};
       Object.entries(data).forEach(([id, player]) => {
         if (id !== playerId.current) {
-          localPlayerStates.current[id] = { ...player, vx: 0, vy: 0 };
           others[id] = player;
+          localStates[id] = { ...player, vx: 0, vy: 0 };
         }
       });
       otherPlayersRef.current = others;
+      localPlayerStates.current = localStates;
     });
 
     const draw = () => {
@@ -203,6 +205,19 @@ export default function BearGameCanvas() {
         p.vy *= 0.85;
         p.x += p.vx;
         p.y += p.vy;
+
+        Object.values(localPlayerStates.current).forEach((other) => {
+          const dx = p.x - other.x;
+          const dy = p.y - other.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = p.radius * 2;
+          if (dist < minDist && other.health > 0) {
+            const angle = Math.atan2(dy, dx);
+            const overlap = minDist - dist;
+            p.x += Math.cos(angle) * (overlap / 2);
+            p.y += Math.sin(angle) * (overlap / 2);
+          }
+        });
       }
 
       Object.entries(localPlayerStates.current).forEach(([id, state]) => {
