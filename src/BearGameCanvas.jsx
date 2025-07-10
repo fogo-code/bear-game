@@ -1,4 +1,4 @@
-// FINAL FIX — Damage Sync + Respawn + Chat Restore + Charge Fix + Hide Dead Bear
+// FINAL FIX — Damage Sync + Respawn + Chat Fix + Charge Block During Chat + Speed Bug + Full Game Logic Restored
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, remove, push, onDisconnect, onValue, get } from 'firebase/database';
@@ -112,13 +112,11 @@ export default function BearGameCanvas() {
     const pollInterval = setInterval(pollDamage, 100);
 
     const handleKeyDown = (e) => {
-      if (chatMode) return;
-      if (isDead) return;
+      if (chatMode || isDead) return;
       if (e.key === 'e' && dashCooldownRef.current <= 0) {
         const p = playerRef.current;
         const angle = p.angle;
         dashCooldownRef.current = 60;
-
         Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
           const dx = op.x - p.x;
           const dy = op.y - p.y;
@@ -127,7 +125,6 @@ export default function BearGameCanvas() {
             sendDamage(id, "charge", angle);
           }
         });
-
         p.vx += Math.cos(angle) * 10;
         p.vy += Math.sin(angle) * 10;
       }
@@ -159,7 +156,6 @@ export default function BearGameCanvas() {
       };
       p.slash = slash;
       clawTimeRef.current = 10;
-
       Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
         const dx = op.x - slash.x;
         const dy = op.y - slash.y;
