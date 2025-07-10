@@ -1,4 +1,4 @@
-// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage fixed, Collision restored
+// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage fixed, Collision adjusted, Slash & Charge damage reliable
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, onDisconnect } from 'firebase/database';
@@ -83,7 +83,7 @@ export default function BearGameCanvas() {
         const dx = state.x - slash.x;
         const dy = state.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 50 && Date.now() - (state._lastHit || 0) > 300) {
+        if (dist < 60 && Date.now() - (state._lastHit || 0) > 300) {
           state.health = Math.max(0, state.health - 10);
           state.vx += Math.cos(angle) * 6;
           state.vy += Math.sin(angle) * 6;
@@ -106,7 +106,7 @@ export default function BearGameCanvas() {
           const dx = state.x - p.x;
           const dy = state.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 60 && Date.now() - (state._lastCharge || 0) > 500) {
+          if (dist < 65 && Date.now() - (state._lastCharge || 0) > 500) {
             state.health = Math.max(0, state.health - 30);
             state.vx += Math.cos(angle) * 12;
             state.vy += Math.sin(angle) * 12;
@@ -210,7 +210,7 @@ export default function BearGameCanvas() {
           const dx = p.x - other.x;
           const dy = p.y - other.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const minDist = p.radius * 2;
+          const minDist = p.radius * 1.4;
           if (dist < minDist && other.health > 0) {
             const angle = Math.atan2(dy, dx);
             const overlap = minDist - dist;
