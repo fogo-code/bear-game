@@ -1,4 +1,4 @@
-// FINAL FIXED VERSION — Damage Sync + Knockback Bug Fix
+// FINAL PATCH — Knockback + Firebase Sync Fix
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
@@ -203,6 +203,8 @@ export default function BearGameCanvas() {
       if (dashCooldownRef.current > 0) dashCooldownRef.current--;
 
       if (p.health <= 0 && !isDead) setIsDead(true);
+
+      // Only sync local player state
       syncToFirebase();
     };
 
