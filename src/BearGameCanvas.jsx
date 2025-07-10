@@ -1,7 +1,7 @@
-// FIXED VERSION WITH DAMAGE REGISTERING RELIABLY AND NO SNAPBACK
+// FINAL CLEANED VERSION WITH GHOST FIX, CONSISTENT DAMAGE, KNOCKBACK, COLLISION
 import { useEffect, useRef } from 'react';
 import db from './firebase';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, remove, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -57,20 +57,16 @@ export default function BearGameCanvas() {
       clawTimeRef.current = 10;
 
       Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-        const dx = other.x - slash.x;
-        const dy = other.y - slash.y;
+        if (!localPlayerStates.current[id]) return;
+        const state = localPlayerStates.current[id];
+        const dx = state.x - slash.x;
+        const dy = state.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 50) {
-          if (!localPlayerStates.current[id]) {
-            localPlayerStates.current[id] = { ...other, vx: 0, vy: 0 };
-          }
-          const state = localPlayerStates.current[id];
-          if (!state._lastHit || Date.now() - state._lastHit > 300) {
-            state.health = Math.max(0, state.health - 10);
-            state.vx += Math.cos(angle) * 6;
-            state.vy += Math.sin(angle) * 6;
-            state._lastHit = Date.now();
-          }
+        if (dist < 50 && Date.now() - (state._lastHit || 0) > 300) {
+          state.health = Math.max(0, state.health - 10);
+          state.vx += Math.cos(angle) * 6;
+          state.vy += Math.sin(angle) * 6;
+          state._lastHit = Date.now();
         }
       });
     };
@@ -84,20 +80,16 @@ export default function BearGameCanvas() {
         dashCooldownRef.current = 60;
 
         Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-          const dx = other.x - p.x;
-          const dy = other.y - p.y;
+          if (!localPlayerStates.current[id]) return;
+          const state = localPlayerStates.current[id];
+          const dx = state.x - p.x;
+          const dy = state.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 60) {
-            if (!localPlayerStates.current[id]) {
-              localPlayerStates.current[id] = { ...other, vx: 0, vy: 0 };
-            }
-            const state = localPlayerStates.current[id];
-            if (!state._lastCharge || Date.now() - state._lastCharge > 500) {
-              state.health = Math.max(0, state.health - 30);
-              state.vx += Math.cos(angle) * 12;
-              state.vy += Math.sin(angle) * 12;
-              state._lastCharge = Date.now();
-            }
+          if (dist < 60 && Date.now() - (state._lastCharge || 0) > 500) {
+            state.health = Math.max(0, state.health - 30);
+            state.vx += Math.cos(angle) * 12;
+            state.vy += Math.sin(angle) * 12;
+            state._lastCharge = Date.now();
           }
         });
       }
@@ -208,6 +200,9 @@ export default function BearGameCanvas() {
     };
 
     loop();
+
+    onDisconnect(ref(db, `players/${playerId.current}`)).remove();
+    return () => remove(ref(db, `players/${playerId.current}`));
   }, []);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute top-0 left-0 z-0" />;
