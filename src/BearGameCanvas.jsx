@@ -1,7 +1,7 @@
-// FINAL FIX — Damage Sync Always Active
+// FINAL FIX — Damage Sync + Polling
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
+import { ref, set, onChildAdded, remove, push, onDisconnect, onValue, get } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 let damageListenerAttached = false;
@@ -38,34 +38,6 @@ export default function BearGameCanvas() {
       slash: p.slash ?? null
     });
   };
-
-  const setupDamageListener = () => {
-    if (damageListenerAttached) return;
-    const dmgRef = ref(db, `damageEvents/${playerId}`);
-    onChildAdded(dmgRef, (snapshot) => {
-      const evt = snapshot.val();
-      if (!evt) return;
-      const { type, angle } = evt;
-      const p = playerRef.current;
-      console.log("🔥 Real-time damage received:", evt);
-
-      if (type === 'slash') {
-        p.health = Math.max(0, p.health - 10);
-        p.vx += Math.cos(angle) * 6;
-        p.vy += Math.sin(angle) * 6;
-      } else if (type === 'charge') {
-        p.health = Math.max(0, p.health - 30);
-        p.vx += Math.cos(angle) * 10;
-        p.vy += Math.sin(angle) * 10;
-      }
-
-      remove(ref(db, `damageEvents/${playerId}/${snapshot.key}`));
-    });
-    damageListenerAttached = true;
-  };
-
-  // 🧠 Attach it IMMEDIATELY
-  setupDamageListener();
 
   useEffect(() => {
     const pRef = ref(db, `players/${playerId}`);
@@ -112,6 +84,29 @@ export default function BearGameCanvas() {
         timestamp: Date.now()
       });
     };
+
+    const pollDamage = () => {
+      const dmgRef = ref(db, `damageEvents/${playerId}`);
+      get(dmgRef).then(snapshot => {
+        const events = snapshot.val();
+        if (!events) return;
+        Object.entries(events).forEach(([key, evt]) => {
+          const { type, angle } = evt;
+          const p = playerRef.current;
+          if (type === 'slash') {
+            p.health = Math.max(0, p.health - 10);
+            p.vx += Math.cos(angle) * 6;
+            p.vy += Math.sin(angle) * 6;
+          } else if (type === 'charge') {
+            p.health = Math.max(0, p.health - 30);
+            p.vx += Math.cos(angle) * 10;
+            p.vy += Math.sin(angle) * 10;
+          }
+          remove(ref(db, `damageEvents/${playerId}/${key}`));
+        });
+      });
+    };
+    const pollInterval = setInterval(pollDamage, 100);
 
     const handleClick = () => {
       if (clawTimeRef.current > 0 || isDead) return;
@@ -280,6 +275,7 @@ export default function BearGameCanvas() {
     };
 
     loop();
+    return () => clearInterval(pollInterval);
   }, [isDead, playerId]);
 
   return <canvas ref={canvasRef} className="w-full h-full absolute top-0 left-0 z-0" />;
