@@ -1,18 +1,16 @@
-// FIXED VERSION WITH CORRECTED POSITION UPDATES AND NO SNAPBACK
-import { useEffect, useRef, useState } from 'react';
+// FIXED VERSION WITH DAMAGE REGISTERING RELIABLY AND NO SNAPBACK
+import { useEffect, useRef } from 'react';
 import db from './firebase';
-import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
+import { ref, set, onValue } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
   const canvasRef = useRef(null);
-  const playerId = useRef(
-    localStorage.getItem("bearPlayerId") || (() => {
-      const id = uuidv4();
-      localStorage.setItem("bearPlayerId", id);
-      return id;
-    })()
-  );
+  const playerId = useRef(localStorage.getItem("bearPlayerId") || (() => {
+    const id = uuidv4();
+    localStorage.setItem("bearPlayerId", id);
+    return id;
+  })());
 
   const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, vx: 0, vy: 0, angle: 0, health: 100, slash: null });
   const otherPlayersRef = useRef({});
@@ -23,13 +21,8 @@ export default function BearGameCanvas() {
   const mousePosRef = useRef({ x: 0, y: 0 });
   const bearImgRef = useRef(new Image());
   const bearLoadedRef = useRef(false);
-  const hasSyncedRef = useRef(false);
 
-  let lastSyncTime = 0;
   const syncToFirebase = () => {
-    const now = Date.now();
-    if (now - lastSyncTime < 150) return;
-    lastSyncTime = now;
     const p = playerRef.current;
     set(ref(db, `players/${playerId.current}`), {
       x: p.x,
@@ -39,12 +32,10 @@ export default function BearGameCanvas() {
       username: "Player",
       slash: p.slash ?? null
     });
-    hasSyncedRef.current = true;
   };
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
@@ -71,12 +62,15 @@ export default function BearGameCanvas() {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 50) {
           if (!localPlayerStates.current[id]) {
-            localPlayerStates.current[id] = { health: other.health, vx: 0, vy: 0, x: other.x, y: other.y };
+            localPlayerStates.current[id] = { ...other, vx: 0, vy: 0 };
           }
           const state = localPlayerStates.current[id];
-          state.health = Math.max(0, state.health - 10);
-          state.vx += Math.cos(angle) * 5;
-          state.vy += Math.sin(angle) * 5;
+          if (!state._lastHit || Date.now() - state._lastHit > 300) {
+            state.health = Math.max(0, state.health - 10);
+            state.vx += Math.cos(angle) * 6;
+            state.vy += Math.sin(angle) * 6;
+            state._lastHit = Date.now();
+          }
         }
       });
     };
@@ -95,12 +89,15 @@ export default function BearGameCanvas() {
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 60) {
             if (!localPlayerStates.current[id]) {
-              localPlayerStates.current[id] = { health: other.health, vx: 0, vy: 0, x: other.x, y: other.y };
+              localPlayerStates.current[id] = { ...other, vx: 0, vy: 0 };
             }
             const state = localPlayerStates.current[id];
-            state.health = Math.max(0, state.health - 30);
-            state.vx += Math.cos(angle) * 10;
-            state.vy += Math.sin(angle) * 10;
+            if (!state._lastCharge || Date.now() - state._lastCharge > 500) {
+              state.health = Math.max(0, state.health - 30);
+              state.vx += Math.cos(angle) * 12;
+              state.vy += Math.sin(angle) * 12;
+              state._lastCharge = Date.now();
+            }
           }
         });
       }
@@ -120,19 +117,12 @@ export default function BearGameCanvas() {
     window.addEventListener("click", handleClick);
 
     onValue(ref(db, 'players'), (snapshot) => {
-      if (!hasSyncedRef.current) return;
       const data = snapshot.val() || {};
       const others = {};
       Object.entries(data).forEach(([id, player]) => {
         if (id !== playerId.current) {
           if (!localPlayerStates.current[id]) {
-            localPlayerStates.current[id] = {
-              health: player.health,
-              vx: 0,
-              vy: 0,
-              x: player.x,
-              y: player.y
-            };
+            localPlayerStates.current[id] = { ...player, vx: 0, vy: 0 };
           }
           others[id] = player;
         }
@@ -147,7 +137,7 @@ export default function BearGameCanvas() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const drawBear = (id, p) => {
-        const state = localPlayerStates.current[id] || {};
+        const state = localPlayerStates.current[id] || p;
         const health = state.health ?? p.health;
         const x = state.x ?? p.x;
         const y = state.y ?? p.y;
@@ -195,25 +185,11 @@ export default function BearGameCanvas() {
       p.x += p.vx;
       p.y += p.vy;
 
-      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-        const state = localPlayerStates.current[id];
-        if (state) {
-          state.vx *= 0.9;
-          state.vy *= 0.9;
-          state.x += state.vx;
-          state.y += state.vy;
-
-          const dx = p.x - state.x;
-          const dy = p.y - state.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const minDist = p.radius * 1.6;
-          if (dist < minDist) {
-            const angle = Math.atan2(dy, dx);
-            const overlap = minDist - dist;
-            p.x += Math.cos(angle) * (overlap / 2);
-            p.y += Math.sin(angle) * (overlap / 2);
-          }
-        }
+      Object.entries(localPlayerStates.current).forEach(([id, state]) => {
+        state.vx *= 0.9;
+        state.vy *= 0.9;
+        state.x += state.vx;
+        state.y += state.vy;
       });
 
       const dx = mousePosRef.current.x - p.x;
