@@ -1,4 +1,4 @@
-// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v4: Real-time Damage Listener Fix)
+// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v5: Listener Persistence)
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
@@ -24,6 +24,7 @@ export default function BearGameCanvas() {
   const [isDead, setIsDead] = useState(false);
   const [respawnTimer, setRespawnTimer] = useState(0);
   const otherPlayersRef = useRef({});
+  const damageListenerAttached = useRef(false);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -148,25 +149,31 @@ export default function BearGameCanvas() {
       otherPlayersRef.current = others;
     });
 
-    const dmgRef = ref(db, `damageEvents/${playerId}`);
-    onChildAdded(dmgRef, (snapshot) => {
-      const evt = snapshot.val();
-      if (!evt) return;
-      const { type, angle } = evt;
-      const p = playerRef.current;
+    // ✅ Attach damage listener ONCE only
+    if (!damageListenerAttached.current) {
+      const dmgRef = ref(db, `damageEvents/${playerId}`);
+      onChildAdded(dmgRef, (snapshot) => {
+        const evt = snapshot.val();
+        if (!evt) return;
+        const { type, angle } = evt;
+        const p = playerRef.current;
 
-      if (type === 'slash') {
-        p.health = Math.max(0, p.health - 10);
-        p.vx += Math.cos(angle) * 6;
-        p.vy += Math.sin(angle) * 6;
-      } else if (type === 'charge') {
-        p.health = Math.max(0, p.health - 30);
-        p.vx += Math.cos(angle) * 10;
-        p.vy += Math.sin(angle) * 10;
-      }
+        console.log("🔥 Damage Received:", evt);
 
-      remove(ref(db, `damageEvents/${playerId}/${snapshot.key}`));
-    });
+        if (type === 'slash') {
+          p.health = Math.max(0, p.health - 10);
+          p.vx += Math.cos(angle) * 6;
+          p.vy += Math.sin(angle) * 6;
+        } else if (type === 'charge') {
+          p.health = Math.max(0, p.health - 30);
+          p.vx += Math.cos(angle) * 10;
+          p.vy += Math.sin(angle) * 10;
+        }
+
+        remove(ref(db, `damageEvents/${playerId}/${snapshot.key}`));
+      });
+      damageListenerAttached.current = true;
+    }
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
