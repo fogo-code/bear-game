@@ -1,7 +1,7 @@
 // FINAL FIX — Damage Sync + Ghost Bear Cleanup
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onChildAdded, remove, push, onDisconnect, onValue, get } from 'firebase/database';
+import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -38,9 +38,9 @@ export default function BearGameCanvas() {
 
   useEffect(() => {
     const pRef = ref(db, `players/${playerId.current}`);
-    remove(pRef);
     syncToFirebase();
     onDisconnect(pRef).remove();
+    return () => remove(pRef);
   }, []);
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function BearGameCanvas() {
         const dx = op.x - slash.x;
         const dy = op.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 60) {
+        if (dist < 60 && op.health > 0) {
           const damageRef = push(ref(db, `damageEvents/${id}`));
           set(damageRef, {
             from: playerId.current,
@@ -114,7 +114,7 @@ export default function BearGameCanvas() {
           const dx = op.x - p.x;
           const dy = op.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 65) {
+          if (dist < 65 && op.health > 0) {
             const damageRef = push(ref(db, `damageEvents/${id}`));
             set(damageRef, {
               from: playerId.current,
@@ -137,16 +137,20 @@ export default function BearGameCanvas() {
       };
     };
 
-    onValue(ref(db, 'players'), (snapshot) => {
+    const playersRef = ref(db, 'players');
+    onValue(playersRef, (snapshot) => {
       const data = snapshot.val() || {};
       const others = {};
       Object.entries(data).forEach(([id, val]) => {
-        if (id !== playerId.current) others[id] = val;
+        if (id !== playerId.current && val.health > 0) {
+          others[id] = val;
+        }
       });
       otherPlayersRef.current = others;
     });
 
-    onChildAdded(ref(db, `damageEvents/${playerId.current}`), (snapshot) => {
+    const dmgRef = ref(db, `damageEvents/${playerId.current}`);
+    onChildAdded(dmgRef, (snapshot) => {
       const evt = snapshot.val();
       if (!evt) return;
       const { type, angle, timestamp } = evt;
@@ -222,7 +226,7 @@ export default function BearGameCanvas() {
       ctx.fillStyle = "#3e5e36";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const drawBear = (x, y, angle, health, slash, username) => {
+      const drawBear = (x, y, angle, health, slash) => {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle - Math.PI / 2);
@@ -251,9 +255,9 @@ export default function BearGameCanvas() {
       };
 
       const p = playerRef.current;
-      drawBear(p.x, p.y, p.angle, p.health, p.slash, "You");
+      drawBear(p.x, p.y, p.angle, p.health, p.slash);
       Object.values(otherPlayersRef.current).forEach(op => {
-        drawBear(op.x, op.y, op.angle, op.health, op.slash, op.username);
+        drawBear(op.x, op.y, op.angle, op.health, op.slash);
       });
 
       if (isDead && respawnTimer > 0) {
