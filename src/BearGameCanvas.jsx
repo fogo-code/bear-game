@@ -24,6 +24,13 @@ export default function BearGameCanvas() {
   const [respawnTimer, setRespawnTimer] = useState(0);
   const otherPlayersRef = useRef({});
   const lastDamageTime = useRef(0);
+  const bearImageRef = useRef(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = '/bear.png';
+    img.onload = () => { bearImageRef.current = img; };
+  }, []);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -92,10 +99,14 @@ export default function BearGameCanvas() {
         if (keys.current['d']) p.vx += p.speed;
       }
 
+      // Collision with screen edges
       p.x += p.vx;
       p.y += p.vy;
       p.vx *= 0.9;
       p.vy *= 0.9;
+
+      p.x = Math.max(p.radius, Math.min(p.x, window.innerWidth - p.radius));
+      p.y = Math.max(p.radius, Math.min(p.y, window.innerHeight - p.radius));
 
       if (clawTimeRef.current > 0) clawTimeRef.current--;
       if (dashCooldownRef.current > 0) dashCooldownRef.current--;
@@ -125,30 +136,44 @@ export default function BearGameCanvas() {
 
       syncToFirebase();
 
-      ctx.clearRect(0, 0, 800, 600);
+      ctx.fillStyle = "#77dd77"; // grassy green
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-      // Draw current player
-      ctx.fillStyle = "brown";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
+      // Draw player
+      if (bearImageRef.current) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.drawImage(bearImageRef.current, -40, -40, 80, 80);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = "brown";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
-      // Draw health bar for current player
       ctx.fillStyle = "red";
       ctx.fillRect(p.x - 40, p.y - 60, 80, 6);
       ctx.fillStyle = "lime";
       ctx.fillRect(p.x - 40, p.y - 60, 80 * (p.health / 100), 6);
-
       ctx.fillStyle = "white";
       ctx.font = "14px Arial";
       ctx.fillText(p.chat, p.x - 30, p.y - 70);
 
-      // Draw other players
       Object.values(otherPlayersRef.current).forEach((op) => {
-        ctx.fillStyle = "gray";
-        ctx.beginPath();
-        ctx.arc(op.x, op.y, 40, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.save();
+        ctx.translate(op.x, op.y);
+        ctx.rotate(op.angle);
+        if (bearImageRef.current) {
+          ctx.drawImage(bearImageRef.current, -40, -40, 80, 80);
+        } else {
+          ctx.fillStyle = "gray";
+          ctx.beginPath();
+          ctx.arc(0, 0, 40, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
 
         ctx.fillStyle = "red";
         ctx.fillRect(op.x - 40, op.y - 60, 80, 6);
@@ -267,7 +292,7 @@ export default function BearGameCanvas() {
 
   return (
     <div>
-      <canvas ref={canvasRef} width={800} height={600} style={{ border: '2px solid black', background: '#f4e1c1' }} />
+      <canvas ref={canvasRef} width={window.innerWidth} height={window.innerHeight} style={{ display: 'block' }} />
       {chatMode && (
         <input
           ref={inputRef}
