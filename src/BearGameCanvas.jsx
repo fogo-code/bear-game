@@ -15,7 +15,7 @@ export default function BearGameCanvas() {
     return newId;
   });
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 2, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 1.5, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
   const keys = useRef({});
   const clawTimeRef = useRef(0);
   const dashCooldownRef = useRef(0);
@@ -69,11 +69,11 @@ export default function BearGameCanvas() {
 
       const p = playerRef.current;
       if (dmg.type === "slash") {
-        p.health -= 30;
+        p.health = Math.max(0, p.health - 30);
         p.vx += Math.cos(dmg.angle) * 5;
         p.vy += Math.sin(dmg.angle) * 5;
       } else if (dmg.type === "charge") {
-        p.health -= 50;
+        p.health = Math.max(0, p.health - 50);
         p.vx += Math.cos(dmg.angle) * 8;
         p.vy += Math.sin(dmg.angle) * 8;
       }
@@ -97,7 +97,6 @@ export default function BearGameCanvas() {
         if (keys.current['d']) p.vx += p.speed;
       }
 
-      // Collision with other players
       Object.values(otherPlayersRef.current).forEach(op => {
         const dx = op.x - p.x;
         const dy = op.y - p.y;
@@ -148,10 +147,19 @@ export default function BearGameCanvas() {
 
       syncToFirebase();
 
-      ctx.fillStyle = "#3e8e41"; // darker grassy green
+      ctx.fillStyle = "#264d26"; // darker grass green
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-      // Draw player
+      if (playerRef.current.slash && Date.now() - playerRef.current.slash.timestamp < 150) {
+        const s = playerRef.current.slash;
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x + Math.cos(s.angle) * 20, s.y + Math.sin(s.angle) * 20);
+        ctx.stroke();
+      }
+
       if (bearImageRef.current) {
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -181,7 +189,6 @@ export default function BearGameCanvas() {
         ctx.fillRect(op.x - 40, op.y - 60, 80, 6);
         ctx.fillStyle = "lime";
         ctx.fillRect(op.x - 40, op.y - 60, 80 * (op.health / 100), 6);
-
         ctx.fillStyle = "white";
         ctx.font = "14px Arial";
         ctx.fillText(op.chat || "", op.x - 30, op.y - 70);
