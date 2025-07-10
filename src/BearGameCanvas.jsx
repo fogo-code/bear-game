@@ -1,7 +1,7 @@
-// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v2)
+// FINAL FIX — Damage Sync + Ghost Bear Cleanup (v3 w/ Real-time Listener)
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
-import { ref, set, onChildAdded, remove, push, onDisconnect, onValue } from 'firebase/database';
+import { ref, set, onChildAdded, remove, push, onDisconnect, onValue, child, get } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function BearGameCanvas() {
@@ -24,7 +24,6 @@ export default function BearGameCanvas() {
   const [isDead, setIsDead] = useState(false);
   const [respawnTimer, setRespawnTimer] = useState(0);
   const otherPlayersRef = useRef({});
-  const lastDamageTime = useRef(0);
 
   const syncToFirebase = () => {
     const p = playerRef.current;
@@ -74,6 +73,17 @@ export default function BearGameCanvas() {
     bearImgRef.current.src = process.env.PUBLIC_URL + "/bear.png";
     bearImgRef.current.onload = () => (bearLoadedRef.current = true);
 
+    const sendDamage = async (id, type, angle) => {
+      const damageRef = ref(db, `damageEvents/${id}`);
+      const newRef = push(damageRef);
+      await set(newRef, {
+        from: playerId,
+        type,
+        angle,
+        timestamp: Date.now()
+      });
+    };
+
     const handleClick = () => {
       if (clawTimeRef.current > 0 || isDead) return;
       const p = playerRef.current;
@@ -92,13 +102,7 @@ export default function BearGameCanvas() {
         const dy = op.y - slash.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 60 && op.health > 0) {
-          const damageRef = push(ref(db, `damageEvents/${id}`));
-          set(damageRef, {
-            from: playerId,
-            type: "slash",
-            angle,
-            timestamp: Date.now()
-          });
+          sendDamage(id, "slash", angle);
         }
       });
     };
@@ -117,13 +121,7 @@ export default function BearGameCanvas() {
           const dy = op.y - p.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 65 && op.health > 0) {
-            const damageRef = push(ref(db, `damageEvents/${id}`));
-            set(damageRef, {
-              from: playerId,
-              type: "charge",
-              angle,
-              timestamp: Date.now()
-            });
+            sendDamage(id, "charge", angle);
           }
         });
       }
@@ -152,27 +150,23 @@ export default function BearGameCanvas() {
     });
 
     const dmgRef = ref(db, `damageEvents/${playerId}`);
-    onChildAdded(dmgRef, (snapshot) => {
-      const evt = snapshot.val();
-      if (!evt) return;
-      const { type, angle, timestamp } = evt;
-      if (timestamp <= lastDamageTime.current) return;
-      lastDamageTime.current = timestamp;
-
+    onValue(dmgRef, (snapshot) => {
+      const events = snapshot.val() || {};
       const p = playerRef.current;
-      if (p.health <= 0) return;
-
-      if (type === 'slash') {
-        p.health = Math.max(0, p.health - 10);
-        p.vx += Math.cos(angle) * 6;
-        p.vy += Math.sin(angle) * 6;
-      } else if (type === 'charge') {
-        p.health = Math.max(0, p.health - 30);
-        p.vx += Math.cos(angle) * 10;
-        p.vy += Math.sin(angle) * 10;
-      }
-
-      remove(ref(db, `damageEvents/${playerId}/${snapshot.key}`));
+      Object.entries(events).forEach(([key, evt]) => {
+        if (!evt) return;
+        const { type, angle, timestamp } = evt;
+        if (type === 'slash') {
+          p.health = Math.max(0, p.health - 10);
+          p.vx += Math.cos(angle) * 6;
+          p.vy += Math.sin(angle) * 6;
+        } else if (type === 'charge') {
+          p.health = Math.max(0, p.health - 30);
+          p.vx += Math.cos(angle) * 10;
+          p.vy += Math.sin(angle) * 10;
+        }
+        remove(ref(db, `damageEvents/${playerId}/${key}`));
+      });
     });
 
     window.addEventListener("keydown", handleKeyDown);
