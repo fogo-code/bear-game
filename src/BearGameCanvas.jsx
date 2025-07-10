@@ -1,4 +1,4 @@
-// FINAL CLEANED VERSION WITH GHOST FIX, COLLISION, SLASH & CHARGE DAMAGE, AND RESPAWN
+// FINAL FIXED VERSION — Ghosts removed, Respawn working, Charge Damage fixed
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, onDisconnect } from 'firebase/database';
@@ -47,6 +47,7 @@ export default function BearGameCanvas() {
             playerRef.current.health = 100;
             playerRef.current.x = Math.random() * 700 + 50;
             playerRef.current.y = Math.random() * 500 + 50;
+            syncToFirebase();
             return 0;
           }
           return prev - 1;
@@ -77,8 +78,7 @@ export default function BearGameCanvas() {
       player.slash = slash;
       clawTimeRef.current = 10;
 
-      Object.entries(otherPlayersRef.current).forEach(([id]) => {
-        const state = localPlayerStates.current[id];
+      Object.entries(localPlayerStates.current).forEach(([id, state]) => {
         if (!state || state.health <= 0) return;
         const dx = state.x - slash.x;
         const dy = state.y - slash.y;
@@ -101,8 +101,7 @@ export default function BearGameCanvas() {
         p.vy += Math.sin(angle) * 10;
         dashCooldownRef.current = 60;
 
-        Object.entries(otherPlayersRef.current).forEach(([id]) => {
-          const state = localPlayerStates.current[id];
+        Object.entries(localPlayerStates.current).forEach(([id, state]) => {
           if (!state || state.health <= 0) return;
           const dx = state.x - p.x;
           const dy = state.y - p.y;
@@ -135,9 +134,7 @@ export default function BearGameCanvas() {
       const others = {};
       Object.entries(data).forEach(([id, player]) => {
         if (id !== playerId.current) {
-          if (!localPlayerStates.current[id]) {
-            localPlayerStates.current[id] = { ...player, vx: 0, vy: 0 };
-          }
+          localPlayerStates.current[id] = { ...player, vx: 0, vy: 0 };
           others[id] = player;
         }
       });
@@ -206,23 +203,6 @@ export default function BearGameCanvas() {
         p.vy *= 0.85;
         p.x += p.vx;
         p.y += p.vy;
-
-        Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
-          const state = localPlayerStates.current[id];
-          if (!state) return;
-          const dx = p.x - state.x;
-          const dy = p.y - state.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const minDist = p.radius * 1.6;
-          if (dist < minDist) {
-            const angle = Math.atan2(dy, dx);
-            const overlap = minDist - dist;
-            p.x += Math.cos(angle) * (overlap / 2);
-            p.y += Math.sin(angle) * (overlap / 2);
-            state.x -= Math.cos(angle) * (overlap / 2);
-            state.y -= Math.sin(angle) * (overlap / 2);
-          }
-        });
       }
 
       Object.entries(localPlayerStates.current).forEach(([id, state]) => {
