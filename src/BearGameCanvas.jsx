@@ -82,9 +82,7 @@ export default function BearGameCanvas() {
       set(ref(db, `damageEvents/${playerId}/${snap.key}`), null);
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [playerId]);
 
   useEffect(() => {
@@ -99,7 +97,21 @@ export default function BearGameCanvas() {
         if (keys.current['d']) p.vx += p.speed;
       }
 
-      // Collision with screen edges
+      // Collision with other players
+      Object.values(otherPlayersRef.current).forEach(op => {
+        const dx = op.x - p.x;
+        const dy = op.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const overlap = p.radius * 2 - dist;
+        if (overlap > 0) {
+          const angle = Math.atan2(dy, dx);
+          const pushX = Math.cos(angle) * overlap * 0.5;
+          const pushY = Math.sin(angle) * overlap * 0.5;
+          p.x -= pushX;
+          p.y -= pushY;
+        }
+      });
+
       p.x += p.vx;
       p.y += p.vy;
       p.vx *= 0.9;
@@ -121,7 +133,7 @@ export default function BearGameCanvas() {
       }
 
       if (isDead) {
-        setRespawnTimer((t) => {
+        setRespawnTimer(t => {
           if (t <= 1) {
             p.health = 100;
             p.x = Math.random() * 600;
@@ -136,21 +148,16 @@ export default function BearGameCanvas() {
 
       syncToFirebase();
 
-      ctx.fillStyle = "#77dd77"; // grassy green
+      ctx.fillStyle = "#3e8e41"; // darker grassy green
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
       // Draw player
       if (bearImageRef.current) {
         ctx.save();
         ctx.translate(p.x, p.y);
-        ctx.rotate(p.angle);
+        ctx.rotate(p.angle - Math.PI / 2);
         ctx.drawImage(bearImageRef.current, -40, -40, 80, 80);
         ctx.restore();
-      } else {
-        ctx.fillStyle = "brown";
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
       }
 
       ctx.fillStyle = "red";
@@ -164,14 +171,9 @@ export default function BearGameCanvas() {
       Object.values(otherPlayersRef.current).forEach((op) => {
         ctx.save();
         ctx.translate(op.x, op.y);
-        ctx.rotate(op.angle);
+        ctx.rotate(op.angle - Math.PI / 2);
         if (bearImageRef.current) {
           ctx.drawImage(bearImageRef.current, -40, -40, 80, 80);
-        } else {
-          ctx.fillStyle = "gray";
-          ctx.beginPath();
-          ctx.arc(0, 0, 40, 0, Math.PI * 2);
-          ctx.fill();
         }
         ctx.restore();
 
