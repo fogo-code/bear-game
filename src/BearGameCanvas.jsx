@@ -1,4 +1,4 @@
-// FULL VERSION WITH LOCAL DAMAGE STATE, KNOCKBACK, AND PERSISTENT COLLISION
+// FULL VERSION WITH LOCAL DAMAGE STATE, KNOCKBACK, SLASH EFFECT, AND PERSISTENT COLLISION
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, onValue, remove, push, onDisconnect } from 'firebase/database';
@@ -136,6 +136,21 @@ export default function BearGameCanvas() {
         ctx.drawImage(bearImgRef.current, -40, -40, 80, 80);
         ctx.restore();
 
+        if (p.slash && Date.now() - p.slash.timestamp < 300) {
+          ctx.save();
+          ctx.translate(p.slash.x, p.slash.y);
+          ctx.rotate(p.slash.angle);
+          ctx.strokeStyle = 'white';
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, -10 + i * 10);
+            ctx.lineTo(25, -15 + i * 10);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
         ctx.fillStyle = "red";
         ctx.fillRect(p.x - 40, p.y - 70, 80, 5);
         ctx.fillStyle = "lime";
@@ -158,13 +173,25 @@ export default function BearGameCanvas() {
       p.x += p.vx;
       p.y += p.vy;
 
-      Object.values(otherPlayersRef.current).forEach((other, i) => {
-        const state = localPlayerStates.current[i] || {};
-        if (!state.vx) return;
-        other.x += state.vx;
-        other.y += state.vy;
-        state.vx *= 0.9;
-        state.vy *= 0.9;
+      Object.entries(otherPlayersRef.current).forEach(([id, other]) => {
+        const state = localPlayerStates.current[id];
+        if (state) {
+          other.x += state.vx ?? 0;
+          other.y += state.vy ?? 0;
+          state.vx *= 0.9;
+          state.vy *= 0.9;
+
+          const dx = p.x - other.x;
+          const dy = p.y - other.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = p.radius * 1.6;
+          if (dist < minDist) {
+            const angle = Math.atan2(dy, dx);
+            const overlap = minDist - dist;
+            p.x += Math.cos(angle) * (overlap / 2);
+            p.y += Math.sin(angle) * (overlap / 2);
+          }
+        }
       });
 
       const dx = mousePosRef.current.x - p.x;
