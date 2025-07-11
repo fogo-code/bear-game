@@ -1,3 +1,4 @@
+// FINAL FIXED VERSION
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, remove, push, onDisconnect, onValue, onChildAdded } from 'firebase/database';
@@ -53,65 +54,12 @@ export default function BearGameCanvas() {
   }, [playerId]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (chatMode || isDead) return;
-      keys.current[e.key.toLowerCase()] = true;
-    };
-
-    const handleKeyUp = (e) => {
-      keys.current[e.key.toLowerCase()] = false;
-    };
-
-    const handleMouseMove = (e) => {
-      const rect = canvasRef.current.getBoundingClientRect();
-      mousePosRef.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      };
-    };
-
-    const handleClick = () => {
-      if (chatMode || clawTimeRef.current > 0 || isDead) return;
-      const p = playerRef.current;
-      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
-      const slash = {
-        x: p.x + Math.cos(angle) * (p.radius + 5),
-        y: p.y + Math.sin(angle) * (p.radius + 5),
-        angle,
-        timestamp: Date.now()
-      };
-      p.slash = slash;
-      clawTimeRef.current = 10;
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('click', handleClick);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('click', handleClick);
-    };
-  }, [chatMode, isDead]);
-
-  useEffect(() => {
-    const playersRef = ref(db, 'players');
-    const unsubscribe = onValue(playersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      delete data[playerId];
-      otherPlayersRef.current = data;
-    });
-
     const damageRef = ref(db, `damageEvents/${playerId}`);
     onChildAdded(damageRef, (snap) => {
       const dmg = snap.val();
       if (!dmg) return;
       const now = Date.now();
       if (now - lastDamageTime.current < 100) return;
-
       const p = playerRef.current;
       if (isDead) return;
 
@@ -124,12 +72,16 @@ export default function BearGameCanvas() {
         p.vx += Math.cos(dmg.angle) * 12;
         p.vy += Math.sin(dmg.angle) * 12;
       }
-
       lastDamageTime.current = now;
       set(ref(db, `damageEvents/${playerId}/${snap.key}`), null);
     });
 
-    return () => unsubscribe();
+    const playersRef = ref(db, 'players');
+    onValue(playersRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      delete data[playerId];
+      otherPlayersRef.current = data;
+    });
   }, [playerId, isDead]);
 
   useEffect(() => {
@@ -187,7 +139,7 @@ export default function BearGameCanvas() {
           p.chat = "";
           setIsDead(false);
         } else {
-          setRespawnCounter(respawnCounter - 1);
+          setRespawnCounter(prev => prev - 1);
         }
       }
 
@@ -245,6 +197,26 @@ export default function BearGameCanvas() {
 
     requestAnimationFrame(loop);
   }, [isDead, respawnCounter]);
+
+  const handleChatKey = (e) => {
+    if (e.key === 'Enter') {
+      if (!chatMode) {
+        setChatMode(true);
+        setTimeout(() => inputRef.current?.focus(), 10);
+      } else {
+        const message = inputRef.current?.value || "";
+        playerRef.current.chat = message;
+        syncToFirebase();
+        inputRef.current.value = "";
+        setChatMode(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleChatKey);
+    return () => window.removeEventListener('keydown', handleChatKey);
+  }, [chatMode]);
 
   return (
     <div>
