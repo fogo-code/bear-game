@@ -16,7 +16,7 @@ export default function BearGameCanvas() {
     return newId;
   });
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 1.5, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 1.2, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
   const keys = useRef({});
   const clawTimeRef = useRef(0);
   const dashCooldownRef = useRef(0);
@@ -137,7 +137,8 @@ export default function BearGameCanvas() {
           p.health = 100;
           p.x = Math.random() * (window.innerWidth - 200) + 100;
           p.y = Math.random() * (window.innerHeight - 200) + 100;
-          p.vx = p.vy = 0;
+          p.vx = 0;
+          p.vy = 0;
           p.chat = "";
           isDeadRef.current = false;
           setIsDead(false);
