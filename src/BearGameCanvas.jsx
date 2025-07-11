@@ -1,4 +1,4 @@
-// FINAL FIXED VERSION
+// FINAL FULL WORKING CODE
 import { useEffect, useRef, useState } from 'react';
 import db from './firebase';
 import { ref, set, remove, push, onDisconnect, onValue, onChildAdded } from 'firebase/database';
@@ -16,7 +16,7 @@ export default function BearGameCanvas() {
     return newId;
   });
 
-  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 1.2, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "" });
+  const playerRef = useRef({ x: 300, y: 300, radius: 40, speed: 1.2, vx: 0, vy: 0, angle: 0, health: 100, slash: null, chat: "", chargeTime: 0 });
   const keys = useRef({});
   const clawTimeRef = useRef(0);
   const dashCooldownRef = useRef(0);
@@ -84,6 +84,106 @@ export default function BearGameCanvas() {
       otherPlayersRef.current = data;
     });
   }, [playerId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!chatMode) keys.current[e.key.toLowerCase()] = true;
+
+      if (e.key === 'e' && dashCooldownRef.current <= 0 && !chatMode && !isDeadRef.current) {
+        const p = playerRef.current;
+        const angle = p.angle;
+        p.vx += Math.cos(angle) * 10;
+        p.vy += Math.sin(angle) * 10;
+        dashCooldownRef.current = 60;
+        p.chargeTime = Date.now();
+
+        Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
+          const dx = op.x - p.x;
+          const dy = op.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 70) {
+            const damageRef = push(ref(db, `damageEvents/${id}`));
+            set(damageRef, {
+              from: playerId,
+              type: "charge",
+              angle,
+              timestamp: Date.now()
+            });
+          }
+        });
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      keys.current[e.key.toLowerCase()] = false;
+    };
+
+    const handleMouseMove = (e) => {
+      const rect = canvasRef.current.getBoundingClientRect();
+      mousePosRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    };
+
+    const handleClick = () => {
+      if (chatMode || clawTimeRef.current > 0 || isDeadRef.current) return;
+      const p = playerRef.current;
+      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
+      const slash = {
+        x: p.x + Math.cos(angle) * (p.radius + 5),
+        y: p.y + Math.sin(angle) * (p.radius + 5),
+        angle,
+        timestamp: Date.now()
+      };
+      p.slash = slash;
+      clawTimeRef.current = 10;
+
+      Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
+        const dx = op.x - slash.x;
+        const dy = op.y - slash.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 60) {
+          const damageRef = push(ref(db, `damageEvents/${id}`));
+          set(damageRef, {
+            from: playerId,
+            type: "slash",
+            angle,
+            timestamp: Date.now()
+          });
+        }
+      });
+    };
+
+    const handleChatKey = (e) => {
+      if (e.key === 'Enter') {
+        if (!chatMode) {
+          setChatMode(true);
+          setTimeout(() => inputRef.current?.focus(), 10);
+        } else {
+          const message = inputRef.current?.value || "";
+          playerRef.current.chat = message;
+          syncToFirebase();
+          inputRef.current.value = "";
+          setChatMode(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleChatKey);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleChatKey);
+    };
+  }, [chatMode]);
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d');
@@ -201,104 +301,6 @@ export default function BearGameCanvas() {
 
     loop();
   }, []);
-
-  const handleChatKey = (e) => {
-    if (e.key === 'Enter') {
-      if (!chatMode) {
-        setChatMode(true);
-        setTimeout(() => inputRef.current?.focus(), 10);
-      } else {
-        const message = inputRef.current?.value || "";
-        playerRef.current.chat = message;
-        syncToFirebase();
-        inputRef.current.value = "";
-        setChatMode(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!chatMode) keys.current[e.key.toLowerCase()] = true;
-      if (e.key === 'e' && dashCooldownRef.current <= 0 && !chatMode && !isDeadRef.current) {
-        const p = playerRef.current;
-        const angle = p.angle;
-        p.vx += Math.cos(angle) * 10;
-        p.vy += Math.sin(angle) * 10;
-        dashCooldownRef.current = 60;
-
-        Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
-          const dx = op.x - p.x;
-          const dy = op.y - p.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 65) {
-            const damageRef = push(ref(db, `damageEvents/${id}`));
-            set(damageRef, {
-              from: playerId,
-              type: "charge",
-              angle,
-              timestamp: Date.now()
-            });
-          }
-        });
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      keys.current[e.key.toLowerCase()] = false;
-    };
-
-    const handleMouseMove = (e) => {
-      const rect = canvasRef.current.getBoundingClientRect();
-      mousePosRef.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      };
-    };
-
-    const handleClick = () => {
-      if (chatMode || clawTimeRef.current > 0 || isDeadRef.current) return;
-      const p = playerRef.current;
-      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
-      const slash = {
-        x: p.x + Math.cos(angle) * (p.radius + 5),
-        y: p.y + Math.sin(angle) * (p.radius + 5),
-        angle,
-        timestamp: Date.now()
-      };
-      p.slash = slash;
-      clawTimeRef.current = 10;
-
-      Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
-        const dx = op.x - slash.x;
-        const dy = op.y - slash.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 60) {
-          const damageRef = push(ref(db, `damageEvents/${id}`));
-          set(damageRef, {
-            from: playerId,
-            type: "slash",
-            angle,
-            timestamp: Date.now()
-          });
-        }
-      });
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', handleChatKey);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleChatKey);
-    };
-  }, [chatMode]);
 
   return (
     <div>
