@@ -21,8 +21,9 @@ export default function BearGameCanvas() {
   const clawTimeRef = useRef(0);
   const dashCooldownRef = useRef(0);
   const mousePosRef = useRef({ x: 0, y: 0 });
+  const isDeadRef = useRef(false);
+  const respawnCounterRef = useRef(0);
   const [isDead, setIsDead] = useState(false);
-  const [respawnCounter, setRespawnCounter] = useState(0);
   const otherPlayersRef = useRef({});
   const lastDamageTime = useRef(0);
   const bearImageRef = useRef(null);
@@ -61,7 +62,7 @@ export default function BearGameCanvas() {
       const now = Date.now();
       if (now - lastDamageTime.current < 100) return;
       const p = playerRef.current;
-      if (isDead) return;
+      if (isDeadRef.current) return;
 
       if (dmg.type === "slash") {
         p.health = Math.max(0, p.health - 30);
@@ -82,7 +83,7 @@ export default function BearGameCanvas() {
       delete data[playerId];
       otherPlayersRef.current = data;
     });
-  }, [playerId, isDead]);
+  }, [playerId]);
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d');
@@ -90,7 +91,7 @@ export default function BearGameCanvas() {
     const loop = () => {
       const p = playerRef.current;
 
-      if (!isDead) {
+      if (!isDeadRef.current) {
         if (keys.current['w']) p.vy -= p.speed;
         if (keys.current['s']) p.vy += p.speed;
         if (keys.current['a']) p.vx -= p.speed;
@@ -124,22 +125,24 @@ export default function BearGameCanvas() {
 
       p.angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
 
-      if (p.health <= 0 && !isDead) {
+      if (p.health <= 0 && !isDeadRef.current) {
+        isDeadRef.current = true;
         setIsDead(true);
-        setRespawnCounter(180);
+        respawnCounterRef.current = 180;
         p.chat = "I died!";
       }
 
-      if (isDead) {
-        if (respawnCounter <= 0) {
+      if (isDeadRef.current) {
+        if (respawnCounterRef.current <= 0) {
           p.health = 100;
           p.x = Math.random() * (window.innerWidth - 200) + 100;
           p.y = Math.random() * (window.innerHeight - 200) + 100;
           p.vx = p.vy = 0;
           p.chat = "";
+          isDeadRef.current = false;
           setIsDead(false);
         } else {
-          setRespawnCounter(prev => prev - 1);
+          respawnCounterRef.current--;
         }
       }
 
@@ -195,8 +198,8 @@ export default function BearGameCanvas() {
       requestAnimationFrame(loop);
     };
 
-    requestAnimationFrame(loop);
-  }, [isDead, respawnCounter]);
+    loop();
+  }, []);
 
   const handleChatKey = (e) => {
     if (e.key === 'Enter') {
@@ -216,7 +219,7 @@ export default function BearGameCanvas() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!chatMode) keys.current[e.key.toLowerCase()] = true;
-      if (e.key === 'e' && dashCooldownRef.current <= 0 && !chatMode && !isDead) {
+      if (e.key === 'e' && dashCooldownRef.current <= 0 && !chatMode && !isDeadRef.current) {
         const p = playerRef.current;
         const angle = p.angle;
         p.vx += Math.cos(angle) * 10;
@@ -253,7 +256,7 @@ export default function BearGameCanvas() {
     };
 
     const handleClick = () => {
-      if (chatMode || clawTimeRef.current > 0 || isDead) return;
+      if (chatMode || clawTimeRef.current > 0 || isDeadRef.current) return;
       const p = playerRef.current;
       const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
       const slash = {
@@ -294,7 +297,7 @@ export default function BearGameCanvas() {
       window.removeEventListener('click', handleClick);
       window.removeEventListener('keydown', handleChatKey);
     };
-  }, [chatMode, isDead]);
+  }, [chatMode]);
 
   return (
     <div>
