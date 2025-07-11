@@ -214,9 +214,87 @@ export default function BearGameCanvas() {
   };
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!chatMode) keys.current[e.key.toLowerCase()] = true;
+      if (e.key === 'e' && dashCooldownRef.current <= 0 && !chatMode && !isDead) {
+        const p = playerRef.current;
+        const angle = p.angle;
+        p.vx += Math.cos(angle) * 10;
+        p.vy += Math.sin(angle) * 10;
+        dashCooldownRef.current = 60;
+
+        Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
+          const dx = op.x - p.x;
+          const dy = op.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 65) {
+            const damageRef = push(ref(db, `damageEvents/${id}`));
+            set(damageRef, {
+              from: playerId,
+              type: "charge",
+              angle,
+              timestamp: Date.now()
+            });
+          }
+        });
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      keys.current[e.key.toLowerCase()] = false;
+    };
+
+    const handleMouseMove = (e) => {
+      const rect = canvasRef.current.getBoundingClientRect();
+      mousePosRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    };
+
+    const handleClick = () => {
+      if (chatMode || clawTimeRef.current > 0 || isDead) return;
+      const p = playerRef.current;
+      const angle = Math.atan2(mousePosRef.current.y - p.y, mousePosRef.current.x - p.x);
+      const slash = {
+        x: p.x + Math.cos(angle) * (p.radius + 5),
+        y: p.y + Math.sin(angle) * (p.radius + 5),
+        angle,
+        timestamp: Date.now()
+      };
+      p.slash = slash;
+      clawTimeRef.current = 10;
+
+      Object.entries(otherPlayersRef.current).forEach(([id, op]) => {
+        const dx = op.x - slash.x;
+        const dy = op.y - slash.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 60) {
+          const damageRef = push(ref(db, `damageEvents/${id}`));
+          set(damageRef, {
+            from: playerId,
+            type: "slash",
+            angle,
+            timestamp: Date.now()
+          });
+        }
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('click', handleClick);
     window.addEventListener('keydown', handleChatKey);
-    return () => window.removeEventListener('keydown', handleChatKey);
-  }, [chatMode]);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleChatKey);
+    };
+  }, [chatMode, isDead]);
 
   return (
     <div>
